@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import '../core/constants.dart';
 import '../core/theme.dart';
+import '../models/plant_species.dart';
 import 'pill_badge.dart';
 
 class PlantCard extends StatelessWidget {
@@ -11,6 +13,8 @@ class PlantCard extends StatelessWidget {
   final Color cardColor;   // background of the image placeholder area
   final IconData icon;
   final Color iconColor;
+  final String? imageUrl;
+  final VoidCallback? onTap;
 
   const PlantCard({
     super.key,
@@ -21,25 +25,30 @@ class PlantCard extends StatelessWidget {
     required this.cardColor,
     required this.icon,
     required this.iconColor,
+    this.imageUrl,
+    this.onTap,
   });
 
-  /// Convenience constructor from the kSamplePlants map entries.
-  factory PlantCard.fromMap(Map<String, dynamic> m) {
+  /// Convenience constructor from a real Supabase species record.
+  factory PlantCard.fromSpecies(PlantSpecies species, {VoidCallback? onTap}) {
+    final colors = colorPairForId(species.id);
     return PlantCard(
-      commonName:     m['common'] as String,
-      scientificName: m['scientific'] as String,
-      familyName:     m['family'] as String,
-      healthy:        m['healthy'] as bool,
-      cardColor:      Color(m['cardColor'] as int),
-      iconColor:      Color(m['iconColor'] as int),
-      icon:           Icons.eco_outlined, // default; override per-species later
+      commonName: species.commonName,
+      scientificName: species.scientificName,
+      familyName: species.familyName ?? 'Unclassified',
+      healthy: true,
+      cardColor: Color(colors[0]),
+      iconColor: Color(colors[1]),
+      icon: Icons.eco_outlined,
+      imageUrl: species.referenceImageUrl,
+      onTap: onTap,
     );
   }
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () => context.go('/results'),
+      onTap: onTap,
       child: ClipRRect(
         borderRadius: kBRXl,
         child: Container(
@@ -50,13 +59,27 @@ class PlantCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Coloured image placeholder
-              Container(
+              // Reference photo, falling back to a coloured placeholder
+              SizedBox(
                 height: 98,
-                color: cardColor,
-                child: Center(
-                  child: Icon(icon, size: 40, color: iconColor),
-                ),
+                width: double.infinity,
+                child: imageUrl != null
+                    ? CachedNetworkImage(
+                        imageUrl: imageUrl!,
+                        fit: BoxFit.cover,
+                        placeholder: (_, __) => Container(
+                          color: cardColor,
+                          child: Center(child: Icon(icon, size: 40, color: iconColor)),
+                        ),
+                        errorWidget: (_, __, ___) => Container(
+                          color: cardColor,
+                          child: Center(child: Icon(icon, size: 40, color: iconColor)),
+                        ),
+                      )
+                    : Container(
+                        color: cardColor,
+                        child: Center(child: Icon(icon, size: 40, color: iconColor)),
+                      ),
               ),
               // Text body
               Container(

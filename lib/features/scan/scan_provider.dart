@@ -1,22 +1,52 @@
 // lib/features/scan/scan_provider.dart
 import 'package:flutter/foundation.dart';
 
-enum ScanState { idle, preview, analyzing }
+enum ScanState { idle, preview, analyzing, needsMoreImages }
 
+/// Drives the multi-photo identification flow. A single low-confidence photo
+/// doesn't dead-end the user — up to [maxImages] photos of the same plant
+/// are collected and classified together (see ClassifierService.classify),
+/// which gives the model more evidence to work with.
 class ScanProvider extends ChangeNotifier {
-  ScanState state = ScanState.idle;
-  Uint8List? imageBytes;
-  String? errorMessage;
+  static const maxImages = 3;
 
+  ScanState state = ScanState.idle;
+  final List<Uint8List> images = [];
+  String? errorMessage;
+  double? lastConfidence;
+
+  Uint8List? get primaryImage => images.isEmpty ? null : images.first;
+  Uint8List? get latestImage => images.isEmpty ? null : images.last;
+  bool get canAddMoreImages => images.length < maxImages;
+
+  /// Starts a fresh identification with a single photo.
   void setPreview(Uint8List bytes) {
-    imageBytes    = bytes;
-    state         = ScanState.preview;
-    errorMessage  = null;
+    images
+      ..clear()
+      ..add(bytes);
+    state = ScanState.preview;
+    errorMessage = null;
+    lastConfidence = null;
+    notifyListeners();
+  }
+
+  /// Adds another photo of the same plant on top of what's already collected.
+  void addImage(Uint8List bytes) {
+    if (!canAddMoreImages) return;
+    images.add(bytes);
     notifyListeners();
   }
 
   void startAnalyzing() {
     state = ScanState.analyzing;
+    notifyListeners();
+  }
+
+  /// Confidence came in below threshold — ask for another angle rather than
+  /// dead-ending with a plain "try again".
+  void needsMoreImages(double confidence) {
+    lastConfidence = confidence;
+    state = ScanState.needsMoreImages;
     notifyListeners();
   }
 
@@ -28,8 +58,9 @@ class ScanProvider extends ChangeNotifier {
 
   void reset() {
     state        = ScanState.idle;
-    imageBytes   = null;
+    images.clear();
     errorMessage = null;
+    lastConfidence = null;
     notifyListeners();
   }
 }

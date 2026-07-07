@@ -1,15 +1,20 @@
 // lib/features/results/results_screen.dart
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../core/theme.dart';
 import '../../core/constants.dart';
+import '../../core/species_provider.dart';
 import '../../models/identification_result.dart';
+import '../../models/plant_species.dart';
+import '../../widgets/plant_detail_modal.dart';
 import '../../widgets/pill_badge.dart';
 import '../../widgets/confidence_bar.dart';
 import '../../widgets/fact_card.dart';
-import '../../widgets/info_row.dart';
 import '../../widgets/eco_card.dart';
 import '../../widgets/care_row.dart';
+import '../../widgets/hover_lift.dart';
 
 class ResultsScreen extends StatefulWidget {
   final IdentificationResult result;
@@ -25,20 +30,21 @@ class _ResultsScreenState extends State<ResultsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (widget.result.species == null && !widget.result.isConfident) {
+    final species = widget.result.species;
+
+    if (species == null) {
       return SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: const [
-            _BackButton(),
-            _LowConfidenceView(),
+          children: [
+            const _TopBar(),
+            _NoResultView(confident: widget.result.isConfident),
           ],
         ),
       );
     }
 
-    final species = widget.result.species ?? PlantSpeciesSimple.mangoSample;
-    final cls     = widget.result.classification;
+    final cls = widget.result.classification;
 
     return SingleChildScrollView(
       child: Column(
@@ -51,22 +57,22 @@ class _ResultsScreenState extends State<ResultsScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const _BackButton(),
+                  _TopBar(healthy: cls.healthStatus != HealthStatus.unhealthy),
 
                   // Header: image + info
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(kSp24, 18, kSp24, 0),
+                    padding: const EdgeInsets.fromLTRB(kSp24, 16, kSp24, 0),
                     child: LayoutBuilder(
                       builder: (context, constraints) {
                         final isWide = constraints.maxWidth >= kBreakpointMd;
-                        final image = _PlantImage(species: species);
+                        final image = _PlantImage(species: species, healthy: cls.healthStatus != HealthStatus.unhealthy);
                         final info  = _SpeciesInfo(species: species, cls: cls);
                         return isWide
                             ? Row(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  SizedBox(width: 210, child: image),
-                                  const SizedBox(width: 20),
+                                  SizedBox(width: 260, child: image),
+                                  const SizedBox(width: 24),
                                   Expanded(child: info),
                                 ],
                               )
@@ -104,18 +110,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
                   // Similar species
                   Padding(
                     padding: const EdgeInsets.fromLTRB(kSp24, 24, kSp24, kSp36),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Divider(height: 1),
-                        const SizedBox(height: 20),
-                        const Text('Similar species',
-                            style: TextStyle(
-                                fontSize: 16, fontWeight: FontWeight.w500, color: kTx)),
-                        const SizedBox(height: 12),
-                        const _SimilarSpecies(),
-                      ],
-                    ),
+                    child: _SimilarSpecies(current: species),
                   ),
                 ],
               ),
@@ -125,12 +120,12 @@ class _ResultsScreenState extends State<ResultsScreen> {
           // Footer — bleeds edge to edge, not width-constrained
           Container(
             width: double.infinity,
-            color: kDark,
+            color: Colors.white,
             padding: const EdgeInsets.all(20),
             child: const Center(
               child: Text(
-                'Identification data sourced from Owusu-Prempeh et al. (2018) UENR botanical survey',
-                style: TextStyle(fontSize: 11, color: Color(0x66FFFFFF)),
+                'UENR Flora Environmental Learning Hub. Group 4 Final Year Project',
+                style: TextStyle(fontSize: 11, color:kMu),
                 textAlign: TextAlign.center,
               ),
             ),
@@ -140,7 +135,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
     );
   }
 
-  Widget _buildTabContent(PlantSpeciesSimple species, ClassificationOutput cls) {
+  Widget _buildTabContent(PlantSpecies species, ClassificationOutput cls) {
     switch (_tab) {
       case 0: return _TabOverview(species: species, cls: cls);
       case 1: return _TabEcology(species: species);
@@ -152,32 +147,52 @@ class _ResultsScreenState extends State<ResultsScreen> {
   }
 }
 
-// ── Back button ──────────────────────────────────────────────
-class _BackButton extends StatelessWidget {
-  const _BackButton();
+// ── Top bar: back link + health pill, mirrors the reference design's ──
+// ── header row without pinning the page to a fixed background colour. ──
+class _TopBar extends StatelessWidget {
+  final bool? healthy; // null in the no-result state — pill is hidden
+  const _TopBar({this.healthy});
 
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(kSp24, 18, kSp24, 0),
-      child: TextButton.icon(
-        onPressed: () => context.go('/scan'),
-        style: TextButton.styleFrom(
-          foregroundColor: kMu, padding: EdgeInsets.zero),
-        icon: const Icon(Icons.arrow_back_outlined, size: 16),
-        label: const Text('Back to scanner',
-            style: TextStyle(fontSize: 12, color: kMu)),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          TextButton.icon(
+            onPressed: () => context.go('/scan'),
+            style: TextButton.styleFrom(
+              foregroundColor: kMu, padding: EdgeInsets.zero),
+            icon: const Icon(Icons.arrow_back_outlined, size: 16),
+            label: const Text('Back to scanner',
+                style: TextStyle(fontSize: 12, color: kMu)),
+          ),
+          if (healthy != null) PillBadge(healthy: healthy!),
+        ],
       ),
     );
   }
 }
 
-// ── Low confidence state ────────────────────────────────────
-class _LowConfidenceView extends StatelessWidget {
-  const _LowConfidenceView();
+// ── No result state — either low confidence after every attempt, or a ──
+// ── genuine "species missing from the database" data problem. ─────────
+class _NoResultView extends StatelessWidget {
+  final bool confident;
+  const _NoResultView({required this.confident});
 
   @override
   Widget build(BuildContext context) {
+    final title = confident
+        ? "Couldn't load this species' details"
+        : 'Plant could not be identified confidently';
+    final body = confident
+        ? "We recognised a match, but couldn't load its record just now. "
+          'This is usually temporary — please try again.'
+        : "We compared your photos against every species in our database but "
+          "couldn't reach ${(kConfidenceThreshold * 100).round()}% confidence. "
+          'Try clearer, well-lit photos of the leaf, flower, or bark.';
+
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.all(kSp24),
@@ -190,15 +205,13 @@ class _LowConfidenceView extends StatelessWidget {
         children: [
           const Icon(Icons.help_outline, size: 48, color: kDeep),
           const SizedBox(height: 12),
-          const Text('Plant could not be identified confidently',
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: kTx),
+          Text(title,
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: kTx),
               textAlign: TextAlign.center),
           const SizedBox(height: 8),
-          const Text(
-            'The model\'s confidence was below 70%. Try a clearer photo '
-            'with better lighting and a plain background.',
-            style: TextStyle(fontSize: 12, color: kMu, height: 1.55),
-            textAlign: TextAlign.center),
+          Text(body,
+              style: const TextStyle(fontSize: 12, color: kMu, height: 1.55),
+              textAlign: TextAlign.center),
           const SizedBox(height: 20),
           ElevatedButton(
             onPressed: () => context.go('/scan'),
@@ -236,20 +249,169 @@ class _TabBtn extends StatelessWidget {
   }
 }
 
-// ── Plant image with action buttons ─────────────────────────
-class _PlantImage extends StatelessWidget {
-  final PlantSpeciesSimple species;
-  const _PlantImage({required this.species});
+// ── Icon + label/value pair used in the header's 2x2 facts grid ───────
+class _IconInfoTile extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  const _IconInfoTile({required this.icon, required this.label, required this.value});
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
-          height: 200, width: double.infinity,
-          decoration: BoxDecoration(
-            color: const Color(0xFFFAC775), borderRadius: kBRXl),
-          child: const Icon(Icons.yard_outlined, size: 68, color: Color(0xFF633806)),
+          width: 34, height: 34,
+          decoration: const BoxDecoration(color: kLight, shape: BoxShape.circle),
+          child: Icon(icon, size: 16, color: kDeep),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: const TextStyle(fontSize: 11, color: kMu)),
+              const SizedBox(height: 2),
+              Text(value,
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: kTx),
+                  maxLines: 1, overflow: TextOverflow.ellipsis),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ── 2-column grid, sized to content rather than a fixed aspect ratio ──
+// ── (which leaves huge gaps on wide screens for single-line rows). ────
+class _InfoGrid extends StatelessWidget {
+  final List<List<Widget>> rows;
+  final double spacing;
+  const _InfoGrid({required this.rows, required this.spacing});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        for (final row in rows) ...[
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: row[0]),
+              SizedBox(width: spacing),
+              Expanded(child: row[1]),
+            ],
+          ),
+          if (row != rows.last) SizedBox(height: spacing),
+        ],
+      ],
+    );
+  }
+}
+
+// ── White card of icon/label/value rows, divided by hairlines — used ──
+// ── by the Overview tab's Height/Leaf shape/Flowering/Growth habit facts.
+class _DetailRowData {
+  final IconData icon;
+  final String label;
+  final String value;
+  const _DetailRowData(this.icon, this.label, this.value);
+}
+
+class _DetailCard extends StatelessWidget {
+  final List<_DetailRowData> rows;
+  const _DetailCard({required this.rows});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        color: kWhite,
+        border: Border.all(color: kBorder, width: 0.5),
+        borderRadius: kBRXl,
+      ),
+      child: Column(
+        children: [
+          for (var i = 0; i < rows.length; i++) ...[
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 13),
+              child: Row(
+                children: [
+                  Icon(rows[i].icon, size: 15, color: kMu),
+                  const SizedBox(width: 10),
+                  Text(rows[i].label, style: const TextStyle(fontSize: 13, color: kMu)),
+                  const Spacer(),
+                  Flexible(
+                    child: Text(rows[i].value,
+                        textAlign: TextAlign.end,
+                        style: const TextStyle(
+                            fontSize: 13, fontWeight: FontWeight.w500, color: kTx)),
+                  ),
+                ],
+              ),
+            ),
+            if (i != rows.length - 1) const Divider(height: 1),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+// ── Plant image with action buttons ─────────────────────────
+class _PlantImage extends StatelessWidget {
+  final PlantSpecies species;
+  final bool healthy;
+  const _PlantImage({required this.species, required this.healthy});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = colorPairForId(species.id);
+    final cardColor = Color(colors[0]);
+    final iconColor = Color(colors[1]);
+    final imageUrl = species.referenceImageUrl;
+
+    return Stack(
+      children: [
+        GestureDetector(
+          onTap: () => showPlantDetailModal(
+            context,
+            species: species,
+            type: species.growthType ?? '',
+            healthy: healthy,
+            cardColor: cardColor,
+            iconColor: iconColor,
+          ),
+          child: ClipRRect(
+            borderRadius: kBRXl,
+            child: SizedBox(
+              height: 260, width: double.infinity,
+              child: imageUrl != null
+                  ? CachedNetworkImage(
+                      imageUrl: imageUrl,
+                      fit: BoxFit.cover,
+                      placeholder: (_, __) => Container(
+                        color: cardColor,
+                        child: Center(
+                            child: Icon(Icons.eco_outlined, size: 56, color: iconColor)),
+                      ),
+                      errorWidget: (_, __, ___) => Container(
+                        color: cardColor,
+                        child: Center(
+                            child: Icon(Icons.eco_outlined, size: 56, color: iconColor)),
+                      ),
+                    )
+                  : Container(
+                      color: cardColor,
+                      child: Center(
+                          child: Icon(Icons.eco_outlined, size: 56, color: iconColor)),
+                    ),
+            ),
+          ),
         ),
         Positioned(
           bottom: 10, right: 10,
@@ -259,7 +421,7 @@ class _PlantImage extends StatelessWidget {
               const SizedBox(width: 6),
               _CircleBtn(
                   icon: Icons.favorite_border,
-                  iconColor: const Color(0xFF9B1C1C),
+                  iconColor: kUnhealthyTx,
                   onTap: () {}),
             ],
           ),
@@ -293,7 +455,7 @@ class _CircleBtn extends StatelessWidget {
 
 // ── Species info block ──────────────────────────────────────
 class _SpeciesInfo extends StatelessWidget {
-  final PlantSpeciesSimple species;
+  final PlantSpecies species;
   final ClassificationOutput cls;
   const _SpeciesInfo({required this.species, required this.cls});
 
@@ -306,43 +468,37 @@ class _SpeciesInfo extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(species.commonName,
-                      style: const TextStyle(
-                          fontSize: 22, fontWeight: FontWeight.w500, color: kTx)),
-                  const SizedBox(height: 3),
-                  Text(species.scientificName,
-                      style: const TextStyle(
-                          fontSize: 13, color: kMu,
-                          fontStyle: FontStyle.italic)),
-                  const SizedBox(height: 2),
-                  Text('Twi: ${species.localNameTwi ?? '—'}',
-                      style: const TextStyle(fontSize: 12, color: kMu)),
-                ],
-              ),
+              child: Text(species.commonName,
+                  style: const TextStyle(
+                      fontSize: 26, fontWeight: FontWeight.w600, color: kTx)),
             ),
-            const SizedBox(width: 8),
-            PillBadge(
-                healthy: cls.healthStatus == HealthStatus.healthy),
+            const Padding(
+              padding: EdgeInsets.only(left: 8, top: 4),
+              child: Text('🌿', style: TextStyle(fontSize: 20)),
+            ),
           ],
         ),
-        const SizedBox(height: 13),
+        const SizedBox(height: 4),
+        Text(species.scientificName,
+            style: const TextStyle(
+                fontSize: 14, color: kGreen, fontStyle: FontStyle.italic)),
+        const SizedBox(height: 3),
+        Text('Twi: ${species.localNameTwi ?? '—'}',
+            style: const TextStyle(fontSize: 13, color: kMu)),
+        const SizedBox(height: 18),
         ConfidenceBar(confidence: cls.confidence),
-        const SizedBox(height: 14),
+        const SizedBox(height: 20),
         // 2x2 mini info grid
-        GridView.count(
-          shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
-          crossAxisCount: 2, crossAxisSpacing: 7, mainAxisSpacing: 7,
-          childAspectRatio: 3.0,
-          children: [
-            InfoRow('Family',    species.familyName ?? '—'),
-            InfoRow('Growth',    species.growthHabit ?? '—'),
-            InfoRow('Leaf type', species.leafType ?? '—'),
-            InfoRow('Origin',    species.origin ?? '—'),
+        _InfoGrid(spacing: 16, rows: [
+          [
+            _IconInfoTile(icon: Icons.eco_outlined, label: 'Family', value: species.familyName ?? '—'),
+            _IconInfoTile(icon: Icons.park_outlined, label: 'Growth', value: species.growthHabit ?? '—'),
           ],
-        ),
+          [
+            _IconInfoTile(icon: Icons.grass_outlined, label: 'Leaf type', value: species.leafType ?? '—'),
+            _IconInfoTile(icon: Icons.public_outlined, label: 'Origin', value: species.origin ?? '—'),
+          ],
+        ]),
       ],
     );
   }
@@ -350,25 +506,39 @@ class _SpeciesInfo extends StatelessWidget {
 
 // ── TAB 0 — OVERVIEW ────────────────────────────────────────
 class _TabOverview extends StatelessWidget {
-  final PlantSpeciesSimple species;
+  final PlantSpecies species;
   final ClassificationOutput cls;
   const _TabOverview({required this.species, required this.cls});
 
   @override
   Widget build(BuildContext context) {
+    final detailCard = _DetailCard(rows: [
+      _DetailRowData(Icons.straighten_outlined, 'Height', species.heightRange ?? '—'),
+      _DetailRowData(Icons.eco_outlined, 'Leaf shape', species.leafType ?? '—'),
+      _DetailRowData(Icons.local_florist_outlined, 'Flowering', species.floweringSeason ?? '—'),
+      _DetailRowData(Icons.park_outlined, 'Growth habit', species.growthHabit ?? '—'),
+    ]);
+    final didYouKnow = species.didYouKnowFacts.isNotEmpty
+        ? FactCard(species.didYouKnowFacts.first)
+        : null;
+
     return Column(
       children: [
-        GridView.count(
-          shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
-          crossAxisCount: 2, crossAxisSpacing: 8, mainAxisSpacing: 8,
-          childAspectRatio: 3.0,
-          children: [
-            InfoRow('Leaf shape',  species.leafType ?? '—'),
-            InfoRow('Flowering',   species.floweringSeason ?? '—'),
-            InfoRow('Fruit type',  'Drupe'),
-            InfoRow('Lifespan',    '200–300 years'),
-          ],
-        ),
+        LayoutBuilder(builder: (context, constraints) {
+          final isWide = constraints.maxWidth >= kBreakpointMd;
+          if (didYouKnow == null) return detailCard;
+          if (!isWide) {
+            return Column(children: [detailCard, const SizedBox(height: 14), didYouKnow]);
+          }
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: detailCard),
+              const SizedBox(width: 16),
+              Expanded(child: didYouKnow),
+            ],
+          );
+        }),
         if (cls.healthStatus == HealthStatus.unhealthy) ...[
           const SizedBox(height: 14),
           Container(
@@ -380,21 +550,23 @@ class _TabOverview extends StatelessWidget {
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: const [
-                Row(children: [
+              children: [
+                const Row(children: [
                   Icon(Icons.warning_amber_rounded,
-                      size: 15, color: Color(0xFF9B1C1C)),
+                      size: 15, color: kUnhealthyTx),
                   SizedBox(width: 7),
                   Text('Health notice',
                       style: TextStyle(
                           fontSize: 13, fontWeight: FontWeight.w500,
-                          color: Color(0xFF9B1C1C))),
+                          color: kUnhealthyTx)),
                 ]),
-                SizedBox(height: 5),
+                const SizedBox(height: 5),
                 Text(
-                  'Leaf shows discolouration consistent with water stress or early '
-                  'anthracnose infection. Consult UENR\'s Dept of Biological Science.',
-                  style: TextStyle(fontSize: 12, color: Color(0xFF791F1F), height: 1.55),
+                  'Our AI flagged visual signs consistent with plant stress '
+                  '(discolouration, spotting, or wilting) with '
+                  '${(cls.healthConfidence * 100).round()}% confidence. For a '
+                  "definitive diagnosis, consult UENR's Dept. of Biological Science.",
+                  style: const TextStyle(fontSize: 12, color: Color(0xFF791F1F), height: 1.55),
                 ),
               ],
             ),
@@ -408,7 +580,7 @@ class _TabOverview extends StatelessWidget {
 
 // ── TAB 1 — ECOLOGY ─────────────────────────────────────────
 class _TabEcology extends StatelessWidget {
-  final PlantSpeciesSimple species;
+  final PlantSpecies species;
   const _TabEcology({required this.species});
 
   @override
@@ -426,12 +598,6 @@ class _TabEcology extends StatelessWidget {
         body: species.ecologicalImportance ??
             'Provides habitat and food sources for campus wildlife.',
       ),
-      EcoCard(
-        iconBg: kAmberL, iconColor: kAmber, icon: Icons.terrain_outlined,
-        title: 'Erosion control',
-        body: 'Extensive root system stabilises soil along campus slopes '
-            'and near the bat sanctuary.',
-      ),
       const SizedBox(height: 8),
     ]);
   }
@@ -439,7 +605,7 @@ class _TabEcology extends StatelessWidget {
 
 // ── TAB 2 — BENEFITS ────────────────────────────────────────
 class _TabBenefits extends StatelessWidget {
-  final PlantSpeciesSimple species;
+  final PlantSpecies species;
   const _TabBenefits({required this.species});
 
   @override
@@ -447,14 +613,10 @@ class _TabBenefits extends StatelessWidget {
     return Column(children: [
       EcoCard(
         title: 'Medicinal uses',
-        body: species.medicinalUses ?? 'Traditional medicinal uses documented.'),
+        body: species.medicinalUses ?? 'No documented medicinal uses.'),
       EcoCard(
         title: 'Economic importance',
-        body: species.economicImportance ?? 'Significant economic value.'),
-      EcoCard(
-        title: 'Shade and microclimate',
-        body: 'Dense canopy reduces surface temperature by up to 4°C '
-            'along campus walkways.'),
+        body: species.economicImportance ?? 'No documented economic importance.'),
       const SizedBox(height: 8),
     ]);
   }
@@ -462,7 +624,7 @@ class _TabBenefits extends StatelessWidget {
 
 // ── TAB 3 — CARE ────────────────────────────────────────────
 class _TabCare extends StatelessWidget {
-  final PlantSpeciesSimple species;
+  final PlantSpecies species;
   const _TabCare({required this.species});
 
   @override
@@ -473,7 +635,7 @@ class _TabCare extends StatelessWidget {
         icon: Icons.water_drop_outlined, title: 'Water',
         body: species.waterRequirements ?? 'Moderate watering requirements.'),
       CareRow(
-        iconBg: kAmberL, iconColor: kAmber,
+        iconBg: kAccentL, iconColor: kAccent,
         icon: Icons.wb_sunny_outlined, title: 'Sunlight',
         body: species.sunlightRequirements ?? 'Full sun preferred.'),
       CareRow(
@@ -487,7 +649,7 @@ class _TabCare extends StatelessWidget {
 
 // ── TAB 4 — FUN FACTS ───────────────────────────────────────
 class _TabFacts extends StatelessWidget {
-  final PlantSpeciesSimple species;
+  final PlantSpecies species;
   const _TabFacts({required this.species});
 
   @override
@@ -513,72 +675,151 @@ class _TabFacts extends StatelessWidget {
 }
 
 // ── SIMILAR SPECIES ─────────────────────────────────────────
+// Real species from the same family (falling back to the same growth type),
+// pulled from the already-loaded SpeciesProvider — no extra network call.
 class _SimilarSpecies extends StatelessWidget {
-  const _SimilarSpecies();
+  final PlantSpecies current;
+  const _SimilarSpecies({required this.current});
 
-  static const _data = [
-    {'name': 'Cashew Tree',  'family': 'Anacardiaceae', 'color': 0xFFFAEEDA, 'icon': Icons.park_outlined,   'ic': 0xFFBA7517},
-    {'name': 'Breadfruit',   'family': 'Moraceae',      'color': 0xFFE1F5EE, 'icon': Icons.forest_outlined,  'ic': 0xFF0F6E56},
-    {'name': 'Papaya',       'family': 'Caricaceae',    'color': 0xFFFAECE7, 'icon': Icons.eco_outlined,     'ic': 0xFF993C1D},
-    {'name': 'Guava',        'family': 'Myrtaceae',     'color': 0xFFFAEEDA, 'icon': Icons.yard_outlined,    'ic': 0xFF854F0B},
-  ];
+  List<PlantSpecies> _pick(List<PlantSpecies> all) {
+    final sameFamily = current.familyName == null
+        ? <PlantSpecies>[]
+        : all.where((s) => s.id != current.id && s.familyName == current.familyName).toList();
+    if (sameFamily.length >= 4) return sameFamily.take(4).toList();
+
+    final sameGrowth = current.growthType == null
+        ? <PlantSpecies>[]
+        : all.where((s) =>
+            s.id != current.id &&
+            !sameFamily.contains(s) &&
+            s.growthType == current.growthType).toList();
+
+    return [...sameFamily, ...sameGrowth].take(4).toList();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return GridView.builder(
-      shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-        maxCrossAxisExtent: 120,
-        crossAxisSpacing: 10, mainAxisSpacing: 10,
-        childAspectRatio: 0.85,
+    final all = context.watch<SpeciesProvider>().all;
+    final similar = _pick(all);
+    if (similar.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Divider(height: 1),
+        const SizedBox(height: 20),
+        const Row(
+          children: [
+            Icon(Icons.eco_outlined, size: 16, color: kDeep),
+            SizedBox(width: 7),
+            Text('Similar species',
+                style: TextStyle(
+                    fontSize: 16, fontWeight: FontWeight.w500, color: kTx)),
+          ],
+        ),
+        const SizedBox(height: 14),
+        GridView.builder(
+          shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+            maxCrossAxisExtent: 200,
+            crossAxisSpacing: 14, mainAxisSpacing: 14,
+            childAspectRatio: 0.95,
+          ),
+          itemCount: similar.length,
+          itemBuilder: (_, i) => _SimilarSpeciesTile(species: similar[i]),
+        ),
+      ],
+    );
+  }
+}
+
+class _SimilarSpeciesTile extends StatelessWidget {
+  final PlantSpecies species;
+  const _SimilarSpeciesTile({required this.species});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = colorPairForId(species.id);
+    final cardColor = Color(colors[0]);
+    final iconColor = Color(colors[1]);
+
+    return HoverLift(
+      borderRadius: kBRMd,
+      onTap: () => showPlantDetailModal(
+        context,
+        species: species,
+        type: species.growthType ?? '',
+        healthy: true,
+        cardColor: cardColor,
+        iconColor: iconColor,
       ),
-      itemCount: _data.length,
-      itemBuilder: (_, i) {
-        final d = _data[i];
-        return GestureDetector(
-          onTap: () {},
-          child: Container(
-            decoration: BoxDecoration(
-              border: Border.all(color: kBorder, width: 0.5),
-              borderRadius: kBRMd,
-              color: kWhite,
-            ),
-            child: Column(
+      child: Container(
+        decoration: BoxDecoration(
+          border: Border.all(color: kBorder, width: 0.5),
+          borderRadius: kBRMd,
+          color: kWhite,
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Stack(
+          children: [
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Color(d['color'] as int),
-                      borderRadius: const BorderRadius.only(
-                        topLeft: Radius.circular(10),
-                        topRight: Radius.circular(10),
-                      ),
-                    ),
-                    child: Center(
-                      child: Icon(d['icon'] as IconData,
-                          size: 24, color: Color(d['ic'] as int)),
-                    ),
-                  ),
+                  child: species.referenceImageUrl != null
+                      ? CachedNetworkImage(
+                          imageUrl: species.referenceImageUrl!,
+                          fit: BoxFit.cover,
+                          width: double.infinity,
+                          placeholder: (_, __) => Container(
+                            color: cardColor,
+                            child: Center(
+                                child: Icon(Icons.eco_outlined, size: 24, color: iconColor)),
+                          ),
+                          errorWidget: (_, __, ___) => Container(
+                            color: cardColor,
+                            child: Center(
+                                child: Icon(Icons.eco_outlined, size: 24, color: iconColor)),
+                          ),
+                        )
+                      : Container(
+                          color: cardColor,
+                          width: double.infinity,
+                          child: Center(
+                              child: Icon(Icons.eco_outlined, size: 24, color: iconColor)),
+                        ),
                 ),
                 Padding(
-                  padding: const EdgeInsets.all(8),
+                  padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
                   child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(d['name'] as String,
+                      Text(species.commonName,
                           style: const TextStyle(
-                              fontSize: 11, fontWeight: FontWeight.w500, color: kTx),
-                          textAlign: TextAlign.center),
-                      Text(d['family'] as String,
-                          style: const TextStyle(fontSize: 9, color: kMu),
-                          textAlign: TextAlign.center),
+                              fontSize: 12, fontWeight: FontWeight.w500, color: kTx),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis),
+                      const SizedBox(height: 1),
+                      Text(species.familyName ?? 'Unclassified',
+                          style: const TextStyle(fontSize: 10, color: kMu),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis),
                     ],
                   ),
                 ),
               ],
             ),
-          ),
-        );
-      },
+            Positioned(
+              right: 8, bottom: 8,
+              child: Container(
+                width: 22, height: 22,
+                decoration: const BoxDecoration(color: kLight, shape: BoxShape.circle),
+                child: const Icon(Icons.chevron_right, size: 14, color: kDeep),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

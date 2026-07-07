@@ -10,8 +10,10 @@ class IdentificationLogger {
   Future<void> log({
     required ClassificationOutput classification,
     required PlantSpecies? species,
+    String? deviceId,
   }) async {
     await _client.from('identification_logs').insert({
+      'device_id':            deviceId,
       'predicted_species_id': species?.id,
       'confidence_score':     classification.confidence,
       'health_status':        classification.healthStatus.name,

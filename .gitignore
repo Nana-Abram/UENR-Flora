@@ -48,3 +48,5 @@ app.*.map.json
 *.env.local
 assets/models/*.json
 assets/models/*.bin
+assets/models/*.weights
+supabase/.temp/

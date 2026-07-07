@@ -8,6 +8,7 @@ class PlantSpecies {
   final String? localNameTwi;
   final String? familyName;
   final String? growthHabit;
+  final String? growthType; // category used for Explorer filtering: trees / shrubs / herbs / ornamental
   final String? heightRange;
   final String? leafType;
   final String? floweringSeason;
@@ -22,6 +23,7 @@ class PlantSpecies {
   final String? referenceImageUrl;
   final int modelClassIndex;
   final List<String> didYouKnowFacts;
+  final List<String> galleryImageUrls;
 
   const PlantSpecies({
     required this.id,
@@ -31,6 +33,7 @@ class PlantSpecies {
     this.localNameTwi,
     this.familyName,
     this.growthHabit,
+    this.growthType,
     this.heightRange,
     this.leafType,
     this.floweringSeason,
@@ -44,11 +47,16 @@ class PlantSpecies {
     this.soilPreference,
     this.referenceImageUrl,
     this.didYouKnowFacts = const [],
+    this.galleryImageUrls = const [],
   });
 
   factory PlantSpecies.fromMap(Map<String, dynamic> map) {
-    final factsRaw  = map['did_you_know_facts'] as List<dynamic>? ?? const [];
-    final familyRaw = map['plant_families'] as Map<String, dynamic>?;
+    final factsRaw   = map['did_you_know_facts'] as List<dynamic>? ?? const [];
+    final familyRaw  = map['plant_families'] as Map<String, dynamic>?;
+    final imagesRaw  = map['species_images'] as List<dynamic>? ?? const [];
+    final sortedImages = List<Map<String, dynamic>>.from(imagesRaw)
+      ..sort((a, b) => ((a['display_order'] as int?) ?? 0)
+          .compareTo((b['display_order'] as int?) ?? 0));
 
     return PlantSpecies(
       id:                    map['id'] as String,
@@ -57,6 +65,7 @@ class PlantSpecies {
       localNameTwi:          map['local_name_twi'] as String?,
       familyName:            familyRaw?['name'] as String?,
       growthHabit:           map['growth_habit'] as String?,
+      growthType:            map['growth_type'] as String?,
       heightRange:           map['height_range'] as String?,
       leafType:              map['leaf_type'] as String?,
       floweringSeason:       map['flowering_season'] as String?,
@@ -73,6 +82,8 @@ class PlantSpecies {
       didYouKnowFacts: factsRaw
           .map((f) => (f as Map<String, dynamic>)['fact_text'] as String)
           .toList(),
+      galleryImageUrls:
+          sortedImages.map((img) => img['image_url'] as String).toList(),
     );
   }
 }

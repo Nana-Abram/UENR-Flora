@@ -5,33 +5,35 @@ import 'package:flutter/material.dart';
 // Never hardcode hex values in widget files.
 // ─────────────────────────────────────────────────────────────
 
-// Primary brand
-const Color kDeep    = Color(0xFF1A3C2D); // deep forest green — hero, quiz, dark headers
-const Color kGreen   = Color(0xFF2D6A4F); // medium green — secondary accents, hover
-const Color kLight   = Color(0xFFD8EDDA); // light green — fact cards, tip backgrounds
-const Color kMint    = Color(0xFF95D5B2); // mint — subtext on dark green sections
+// Primary brand — values match the Figma design tokens (--primary, --secondary,
+// --accent, --chart-4) exactly, so the app's palette stays in lockstep with Figma.
+const Color kDeep    = Color(0xFF1A3C2D); // chart-4 — deepest green, hero/dark headers
+const Color kGreen   = Color(0xFF2D6A4F); // --primary — buttons, links, primary accents
+const Color kLight   = Color(0xFFD8EFDE); // --secondary — fact cards, tip backgrounds
+const Color kMint    = Color(0xFF95D5B2); // --chart-3 / --switch-background — subtext on dark green
 
-// CTA / Action  — ALL primary buttons use kAmber, NOT green
-const Color kAmber   = Color(0xFFC85A2A); // amber/terracotta — primary action buttons
-const Color kAmberL  = Color(0xFFF4E4D8); // light amber — amber icon backgrounds
+// CTA / Action — primary buttons and highlights use the Figma accent green
+const Color kAccent  = Color(0xFF52B788); // --accent / --chart-2
+const Color kAccentL = Color(0xFFE3F5EC); // light tint of --accent, for icon backgrounds
 
 // Page surfaces
-const Color kBg      = Color(0xFFF5F0E8); // warm cream — page background (NOT white)
-const Color kWhite   = Color(0xFFFFFFFF); // pure white — card backgrounds only
+const Color kBg      = Color.fromARGB(255, 228, 255, 243); // --background — mint-tinted off-white page bg
+const Color kWhite   = Color(0xFFFFFFFF); // --card — card backgrounds only
+const Color kMuted   = Color(0xFFEAF3EC); // --muted / --input-background
 const Color kDark    = Color(0xFF1A1A1A); // near-black — footer background
 
 // Text
-const Color kTx      = Color(0xFF1C1C1C); // primary text
-const Color kMu      = Color(0xFF6B7280); // muted / secondary text
+const Color kTx      = Color(0xFF1A2E1A); // --foreground — primary text
+const Color kMu      = Color(0xFF5C7A5C); // --muted-foreground — secondary text
 
 // Borders
-const Color kBorder  = Color(0x1A1A3C2D); // 10 % opacity deep green border
+const Color kBorder  = Color(0x262D6A4F); // --border — primary green @ 15% opacity
 
 // Health status pills
-const Color kHealthyBg   = Color(0xFFD8EDDA);
-const Color kHealthyTx   = Color(0xFF1A3C2D);
-const Color kUnhealthyBg = Color(0xFFFCEAEA);
-const Color kUnhealthyTx = Color(0xFF9B1C1C);
+const Color kHealthyBg   = kLight;
+const Color kHealthyTx   = kGreen;
+const Color kUnhealthyBg = Color(0xFFFBE4E8); // light tint of --destructive
+const Color kUnhealthyTx = Color(0xFFD4183D); // --destructive
 
 // Quiz option states (post-submit)
 const Color kQuizCorrectBg = Color(0x4D2EA05A); // 30 % green
@@ -147,7 +149,7 @@ ThemeData buildAppTheme() {
     ),
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
-        backgroundColor: kAmber,       // ALL primary buttons are amber
+        backgroundColor: kGreen,       // ALL primary buttons use the Figma primary green
         foregroundColor: Colors.white,
         elevation: 0,
         shape: RoundedRectangleBorder(borderRadius: kBRSm),

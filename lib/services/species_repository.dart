@@ -9,7 +9,8 @@ class SpeciesRepository {
   static const String _select = '''
     *,
     plant_families ( name ),
-    did_you_know_facts ( fact_text )
+    did_you_know_facts ( fact_text ),
+    species_images ( image_url, display_order )
   ''';
 
   /// Returns the species whose model_class_index matches the classifier output.
@@ -53,5 +54,16 @@ class SpeciesRepository {
         .select(_select)
         .inFilter('id', ids);
     return rows.map(PlantSpecies.fromMap).toList();
+  }
+
+  /// Returns every identification log's timestamp, health status, predicted
+  /// species, and confidence score — used by the Home dashboard (total scans,
+  /// healthy %, monthly scan-activity chart) and the Explorer (per-species
+  /// average AI confidence), without needing a dedicated aggregation endpoint.
+  Future<List<Map<String, dynamic>>> getScanLogs() async {
+    final rows = await _client
+        .from('identification_logs')
+        .select('created_at, health_status, predicted_species_id, confidence_score');
+    return rows.cast<Map<String, dynamic>>();
   }
 }

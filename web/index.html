@@ -42,6 +42,16 @@
     page load when it failed.
   -->
   <script src="passkeys_bundle.js"></script>
+
+  <!--
+    Species/health classifier. Vendored locally (npm @tensorflow/tfjs
+    4.22.0, matching the converter version that produced
+    assets/models/model.json) rather than pulled from a CDN, for the same
+    reliability reason as passkeys_bundle.js above. classifier.js defines
+    window.uenrFlora, called from lib/services/tfjs_classifier_service.dart.
+  -->
+  <script src="tfjs.min.js"></script>
+  <script src="classifier.js"></script>
 </head>
 <body>
   <script src="flutter_bootstrap.js" async></script>
