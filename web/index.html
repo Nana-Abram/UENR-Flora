@@ -194,10 +194,10 @@
 
   <!--
     Web Push subscribe/unsubscribe bridge. Defines window.uenrPush, called
-    from lib/services/web_push_service.dart. The service worker that
-    actually receives push messages is push_sw.js, registered by
-    flutter_bootstrap.js (see that file's comment) instead of Flutter's
-    default flutter_service_worker.js.
+    from lib/services/web_push_service.dart. push.js registers push_sw.js
+    (the service worker that actually receives push messages) itself,
+    independent of Flutter's own bootstrap — see push.js's and push_sw.js's
+    own comments for why.
   -->
   <script src="push.js" defer></script>
 </head>

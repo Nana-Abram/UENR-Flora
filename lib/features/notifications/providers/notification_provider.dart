@@ -21,6 +21,7 @@ class NotificationProvider extends ChangeNotifier with WidgetsBindingObserver {
     loadNotifications();
     startPolling();
     unawaited(_checkDailyChallengeReminder());
+    unawaited(_triggerDailyPushIfDue());
     unawaited(_refreshPushState());
   }
 
@@ -156,6 +157,21 @@ class NotificationProvider extends ChangeNotifier with WidgetsBindingObserver {
       await loadNotifications();
     } catch (_) {
       // Best-effort reminder — a failure here shouldn't block app launch.
+    }
+  }
+
+  /// Nudges the server-side daily push send — separate from (and not
+  /// gated by) this device's own reminder/completion state above, since
+  /// it's meant to trigger delivery to *other* eligible devices too, not
+  /// just this one. See PushSubscriptionService.triggerDailySend for why
+  /// this needs to happen client-side at all.
+  Future<void> _triggerDailyPushIfDue() async {
+    if (DateTime.now().hour < 7) return;
+    try {
+      await _pushService.triggerDailySend();
+    } catch (_) {
+      // Best-effort — worst case, the next device to open the app after
+      // 7am today (or this same device tomorrow) triggers it instead.
     }
   }
 

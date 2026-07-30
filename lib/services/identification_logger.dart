@@ -37,4 +37,27 @@ class IdentificationLogger {
       'health_confidence':    classification.healthConfidence,
     }).timeout(_insertTimeout);
   }
+
+  /// A photo RejectionGate screened out before it ever reached the
+  /// weighted average — logged with confidence 0 and no species (attaching
+  /// a predicted species to something the app is asserting *isn't a
+  /// plant* would be misleading), distinct from a real low-confidence
+  /// identification. Same best-effort throttle as [log]; a failure here is
+  /// even lower-stakes (it's not tied to anything the offline queue needs
+  /// to replay), so it's just swallowed by the caller rather than queued.
+  Future<void> logRejection({String? deviceId}) async {
+    final now = DateTime.now();
+    final last = _lastLogAt;
+    if (last != null && now.difference(last) < _minInterval) return;
+    _lastLogAt = now;
+
+    await _client.from('identification_logs').insert({
+      'device_id':            deviceId,
+      'predicted_species_id': null,
+      'confidence_score':     0,
+      'health_status':        HealthStatus.healthy.name,
+      'health_confidence':    0,
+      'note':                 'rejected: not_plant',
+    }).timeout(_insertTimeout);
+  }
 }

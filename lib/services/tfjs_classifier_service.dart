@@ -102,6 +102,7 @@ class TfjsClassifierService implements ClassifierService {
       confidence: bestProb,
       healthStatus: isUnhealthy ? HealthStatus.unhealthy : HealthStatus.healthy,
       healthConfidence: isUnhealthy ? avgHealth : 1 - avgHealth,
+      probabilities: avgSpecies,
     );
   }
 }

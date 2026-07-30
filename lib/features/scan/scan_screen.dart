@@ -20,6 +20,9 @@ import '../profile/providers/profile_provider.dart';
 import 'offline_scan_queue.dart';
 import 'pending_scan.dart';
 import 'scan_provider.dart';
+import 'services/rejection_gate.dart';
+
+final _rejectionGate = RejectionGate();
 
 class ScanScreen extends StatelessWidget {
   const ScanScreen({super.key});
@@ -74,6 +77,8 @@ class _ScanBody extends StatelessWidget {
                             _AnalyzingView(bytes: provider.latestImage!),
                           ScanState.needsMoreImages =>
                             const _NeedsMoreImagesView(),
+                          ScanState.rejected =>
+                            _RejectedView(level: provider.lastRejectionLevel!),
                         };
                         return AnimatedSwitcher(
                           duration: const Duration(milliseconds: 250),
@@ -446,7 +451,37 @@ Future<void> _runIdentification(BuildContext context) async {
   provider.startAnalyzing();
 
   try {
-    final output = await classifier.classify(images);
+    // Screen the newest photo alone — before it's allowed anywhere near the
+    // weighted average — for "this doesn't look like a plant at all". A
+    // single-image classify() call gives that photo's own, unaveraged
+    // probability distribution (a weighted average of one item is just
+    // itself), which is what RejectionGate needs to compute entropy over.
+    final latest = images.last;
+    final latestOutput = await classifier.classify([latest]);
+    final rejectionLevel = _rejectionGate.evaluate(latestOutput.probabilities);
+
+    if (rejectionLevel == RejectionLevel.probablyNotPlant ||
+        rejectionLevel == RejectionLevel.definitelyNotPlant) {
+      // Never joins the running average and never counts as one of the 3
+      // attempts — ScanProvider.rejectLatest() removes it from `images`.
+      unawaited(() async {
+        try {
+          final deviceId = await DeviceId.get();
+          await logger.logRejection(deviceId: deviceId);
+        } catch (_) {
+          // Best-effort — a rejection not making it into analytics isn't
+          // worth queueing/retrying the way a real scan's log is.
+        }
+      }());
+      provider.rejectLatest(rejectionLevel);
+      return;
+    }
+
+    // Redundant work avoided for the common case: with exactly one photo
+    // collected so far, `latestOutput` above already *is* the full-batch
+    // result (nothing else to average it with).
+    final output =
+        images.length == 1 ? latestOutput : await classifier.classify(images);
     final confident = output.confidence >= kConfidenceThreshold;
     final species = confident ? await repository.getByClassIndex(output.classIndex) : null;
 
@@ -919,6 +954,170 @@ class _NeedsMoreImagesView extends StatelessWidget {
             child: const Text('Use this result anyway',
                 style: TextStyle(fontSize: 12.5)),
           ),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton(
+              onPressed: () => context.read<ScanProvider>().reset(),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: kMu,
+                side: BorderSide(color: kBorder, width: 0.5),
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                shape: RoundedRectangleBorder(borderRadius: kBRSm),
+              ),
+              child: const Text('Start over', style: TextStyle(fontSize: 13)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// STATE 5 — REJECTED (RejectionGate decided this isn't a plant photo)
+// ─────────────────────────────────────────────────────────────
+const _scanTips = [
+  'Point camera directly at the leaf',
+  'Fill the frame with the plant',
+  'Avoid shadows across the leaf',
+  'Use natural daylight if possible',
+];
+
+class _RejectedView extends StatelessWidget {
+  final RejectionLevel level;
+  const _RejectedView({required this.level});
+
+  Future<void> _retry(BuildContext context, ImageSource source) async {
+    final picker = ImagePicker();
+    final file = await picker.pickImage(source: source, maxWidth: 1600);
+    if (file == null) return;
+    final bytes = await file.readAsBytes();
+    if (!context.mounted) return;
+    final provider = context.read<ScanProvider>();
+    // If earlier photos in this session were already accepted, keep them —
+    // only the rejected photo itself was ever discarded (see
+    // ScanProvider.rejectLatest) — and just add the new one on top.
+    if (provider.images.isEmpty) {
+      provider.setPreview(bytes);
+    } else {
+      provider.addImage(bytes);
+    }
+    if (!context.mounted) return;
+    await _runIdentification(context);
+  }
+
+  void _pickSource(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      shape: RoundedRectangleBorder(borderRadius: kBRXl),
+      builder: (sheetContext) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.camera_alt_outlined),
+              title: const Text('Capture Image'),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                _retry(context, ImageSource.camera);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Upload from Gallery'),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                _retry(context, ImageSource.gallery);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final definite = level == RejectionLevel.definitelyNotPlant;
+    // Never null for these two levels — see RejectionGate.getUserMessage.
+    final message = _rejectionGate.getUserMessage(level, null)!;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: kUnhealthyBg,
+        borderRadius: kBRXl,
+        border: Border.all(color: const Color(0xFFF7C1C1), width: 0.5),
+      ),
+      child: Column(
+        children: [
+          Icon(Icons.search_off, size: 42, color: kUnhealthyTx),
+          const SizedBox(height: 14),
+          Text(
+            definite ? "That doesn't look like a plant" : "Couldn't identify a plant",
+            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: kTx),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 8),
+          Text(message,
+              style: TextStyle(fontSize: 12.5, color: kMu, height: 1.55),
+              textAlign: TextAlign.center),
+          if (definite) ...[
+            const SizedBox(height: 18),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: kWhite,
+                borderRadius: kBRLg,
+                border: Border.all(color: kBorder, width: 0.5),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Tips for a good scan:',
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: kTx)),
+                  const SizedBox(height: 8),
+                  ..._scanTips.map((t) => Padding(
+                        padding: const EdgeInsets.only(bottom: 6),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              width: 5,
+                              height: 5,
+                              margin: const EdgeInsets.only(top: 6, right: 9),
+                              decoration: BoxDecoration(shape: BoxShape.circle, color: kGreen),
+                            ),
+                            Expanded(
+                              child: Text(t,
+                                  style: TextStyle(fontSize: 12, color: kMu, height: 1.4)),
+                            ),
+                          ],
+                        ),
+                      )),
+                ],
+              ),
+            ),
+          ],
+          const SizedBox(height: 20),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () => _pickSource(context),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: kUnhealthyTx,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 13),
+                shape: RoundedRectangleBorder(borderRadius: kBRSm),
+                elevation: 0,
+              ),
+              icon: const Icon(Icons.camera_alt_outlined, size: 16),
+              label: Text(definite ? 'Scan Again' : 'Try Again',
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+            ),
+          ),
+          const SizedBox(height: 10),
           SizedBox(
             width: double.infinity,
             child: OutlinedButton(

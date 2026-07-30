@@ -11,46 +11,29 @@
 // https://docs.flutter.dev/platform-integration/web/initialization.
 //
 // The one change from Flutter's own default bootstrap (see
-// generateDefaultFlutterBootstrapScript in bootstrap.dart): registering
-// push_sw.js instead of flutter_service_worker.js directly, so Web Push's
-// 'push'/'notificationclick' listeners (see push_sw.js) run in the same
-// worker that controls this page. push_sw.js itself does
-// `importScripts('flutter_service_worker.js')`, so Flutter's own generated
-// asset-caching logic still runs completely unchanged inside it.
+// generateDefaultFlutterBootstrapScript in bootstrap.dart): calling
+// `_flutter.loader.load()` with NO serviceWorkerSettings, so Flutter never
+// registers its own service worker at all.
 //
-// Cache-busting note: the service-worker-version template token below
-// expands to a *quoted* JS string literal (e.g. "642555256") — NOT a bare
-// token — so it can't be pasted directly inside another string literal
-// (it would leak literal quote characters into the URL). Assigning it to
-// a variable first and
-// concatenating avoids that: the resulting registration URL changes on
-// every build (new version → new URL → browser treats push_sw.js as a
-// changed registration → reinstalls → its importScripts call re-fetches
-// the current flutter_service_worker.js), preserving the exact
-// stale-main.dart.js-after-redeploy fix verified earlier for the default
-// bootstrap.
-//
-// Dev-mode note: `flutter run` serves this same file (see
-// _flutterBootstrapJsContent in web_asset_server.dart) but always
-// substitutes {{flutter_service_worker_version}} as the bare `null` —
-// `flutter run`'s dev server never generates a flutter_service_worker.js
-// at all (there's nothing to cache; assets are served live for hot
-// reload), so unconditionally registering push_sw.js here would make it
-// try to `importScripts('flutter_service_worker.js')` against a 404 and
-// fail to install, breaking `flutter run -d chrome` (blank page) even
-// though release builds worked fine. Skipping serviceWorkerSettings
-// entirely when the version is null matches Flutter's own default
-// bootstrap behavior for `flutter run` (see includeServiceWorkerSettings
-// in generateDefaultFlutterBootstrapScript) — no service worker, and
-// therefore no Web Push, in debug/dev-server mode; it's still fully wired
-// for `flutter build web --release`, which is the only mode this app is
-// ever actually deployed in.
+// Why: this project used to have push_sw.js registered here instead of
+// Flutter's default flutter_service_worker.js, specifically so Web Push's
+// 'push'/'notificationclick' listeners ran in the same worker that
+// controls the page. That broke on this Flutter SDK version — Flutter
+// deprecated flutter_service_worker.js as a real caching worker (see
+// https://github.com/flutter/flutter/issues/156910) and now generates a
+// stub whose only job is unregistering itself, so push_sw.js
+// importScripts-ing it inherited that self-destruct behavior. push_sw.js
+// now drops the importScripts and registers itself directly from push.js
+// instead (see that file's comment) — decoupled from this bootstrap
+// entirely. But Flutter's *default* bootstrap still unconditionally
+// registers flutter_service_worker.js at the same scope ('/') push_sw.js
+// needs, and verified live that the two fight over that scope — whichever
+// registers second evicts the first as that scope's controller, so
+// `navigator.serviceWorker.ready` could resolve to either one depending on
+// timing. Since Flutter's own service worker no longer does anything
+// useful (a self-unregistering stub, not a cache), the fix is to stop
+// asking Flutter to register one at all, leaving push_sw.js as the only
+// service worker at this scope.
 {{flutter_js}}
 {{flutter_build_config}}
-const _uenrSwVersion = {{flutter_service_worker_version}};
-_flutter.loader.load(_uenrSwVersion == null ? {} : {
-  serviceWorkerSettings: {
-    serviceWorkerUrl: 'push_sw.js?v=' + _uenrSwVersion,
-    serviceWorkerVersion: _uenrSwVersion
-  }
-});
+_flutter.loader.load();

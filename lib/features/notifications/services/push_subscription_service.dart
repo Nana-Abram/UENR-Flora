@@ -27,4 +27,15 @@ class PushSubscriptionService {
   Future<void> remove(String deviceId) async {
     await _client.from('push_subscriptions').delete().eq('device_id', deviceId);
   }
+
+  /// Best-effort trigger for today's push send — see
+  /// supabase/push_client_trigger.sql for why this exists on the client at
+  /// all: the pg_cron job meant to fire this daily doesn't reliably run on
+  /// this project, so whichever device happens to open the app after 7am
+  /// nudges it instead. Idempotent server-side (per-device, via
+  /// get_daily_push_targets()'s last_pushed_at check), so calling this from
+  /// many different devices throughout the day is safe.
+  Future<void> triggerDailySend() async {
+    await _client.rpc('client_trigger_daily_push');
+  }
 }

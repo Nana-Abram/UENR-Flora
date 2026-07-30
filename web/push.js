@@ -3,12 +3,35 @@
 // Web Push subscribe/unsubscribe bridge. Defines window.uenrPush, called
 // from lib/services/web_push_service.dart. The actual push message
 // handling (the 'push'/'notificationclick' listeners) lives in push_sw.js,
-// the service worker — this file only manages the subscription lifecycle
-// from the page context.
+// the service worker — this file manages the subscription lifecycle from
+// the page context AND registers push_sw.js itself (see ensureRegistered
+// below) — deliberately not relying on Flutter's own bootstrap/service-
+// worker loading for this, since that's a moving target Flutter has
+// marked deprecated (https://github.com/flutter/flutter/issues/156910)
+// and previously broke this feature outright — see push_sw.js's own
+// top-of-file comment for the full story.
 window.uenrPush = (function () {
   function isSupported() {
     return !!(window.isSecureContext && 'serviceWorker' in navigator && 'PushManager' in window);
   }
+
+  // Registered once per page load, independent of whatever service worker
+  // (if any) Flutter's own bootstrap sets up. Safe to call unconditionally
+  // and repeatedly — the browser treats re-registering the same URL as a
+  // no-op update check, not a fresh install.
+  let registerPromise = null;
+  function ensureRegistered() {
+    if (!isSupported()) return Promise.resolve(null);
+    if (!registerPromise) {
+      registerPromise = navigator.serviceWorker.register('push_sw.js');
+    }
+    return registerPromise;
+  }
+  // Fire immediately on script load (this script itself is `defer`red, so
+  // this still runs well before a user could reach the notifications
+  // screen) rather than waiting for the first subscribe/getExistingSubscription
+  // call, so swReady() below usually has nothing left to wait for.
+  ensureRegistered();
 
   function permissionState() {
     return typeof Notification === 'undefined' ? 'unsupported' : Notification.permission;
@@ -38,27 +61,19 @@ window.uenrPush = (function () {
   }
 
   // `navigator.serviceWorker.ready` never resolves or rejects on its own if
-  // no service worker ever registers — which is exactly what happens under
-  // `flutter run` (debug/dev-server mode never serves a
-  // flutter_service_worker.js, so flutter_bootstrap.js deliberately skips
-  // serviceWorkerSettings there; see that file's dev-mode note). Without
-  // this timeout, tapping the push toggle in dev mode just hangs forever
-  // with no error and no visible feedback.
-  //
-  // 3000ms here used to be the timeout, on the assumption that release
-  // builds "register push_sw.js almost immediately" — verified live on the
-  // actual Firebase-hosted deploy that this is false: Flutter's own
-  // bootstrap logs "prepareServiceWorker took more than 4000ms to resolve"
-  // on a real first visit, so the old 3s timeout was guaranteed to fire
-  // and misreport a working release build as needing one, every time a
-  // user tapped the toggle soon after page load. 15s is still fast enough
-  // to fail quickly in dev mode (where there's truly no SW to wait for)
-  // while giving a real first-time SW activation room to actually finish
-  // instead of racing it. Only paid once per session — `ready` resolves
-  // immediately on every call after the SW is first active.
+  // registration never succeeds — the timeout here is what turns that into
+  // a real (if generic) error instead of the push toggle hanging forever
+  // with no feedback. 15s gives a real first-time registration/activation
+  // room to finish (verified live: push_sw.js registering and reaching
+  // 'activated' is not instant) while still failing in bounded time if
+  // something is genuinely broken. `ready` resolves immediately on every
+  // call after the SW is first active, so this cost is paid at most once
+  // per session. ensureRegistered() is called first since `ready` alone
+  // never triggers a registration — only reflects one that's already in
+  // progress or done.
   function swReady() {
     return Promise.race([
-      navigator.serviceWorker.ready,
+      ensureRegistered().then(() => navigator.serviceWorker.ready),
       new Promise((_, reject) =>
         setTimeout(() => reject(new Error('sw-unavailable')), 15000)),
     ]);

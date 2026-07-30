@@ -1,8 +1,9 @@
 // lib/features/scan/scan_provider.dart
 import 'package:flutter/foundation.dart';
 import '../../models/identification_result.dart';
+import 'services/rejection_gate.dart';
 
-enum ScanState { idle, preview, analyzing, needsMoreImages }
+enum ScanState { idle, preview, analyzing, needsMoreImages, rejected }
 
 /// Drives the multi-photo identification flow. A single low-confidence photo
 /// doesn't dead-end the user — up to [maxImages] photos of the same plant
@@ -21,6 +22,9 @@ class ScanProvider extends ChangeNotifier {
   /// without re-running inference.
   ClassificationOutput? lastClassification;
 
+  /// Set by [rejectLatest] — which of the two rejection screens to show.
+  RejectionLevel? lastRejectionLevel;
+
   Uint8List? get primaryImage => images.isEmpty ? null : images.first;
   Uint8List? get latestImage => images.isEmpty ? null : images.last;
   bool get canAddMoreImages => images.length < maxImages;
@@ -34,6 +38,7 @@ class ScanProvider extends ChangeNotifier {
     errorMessage = null;
     lastConfidence = null;
     lastClassification = null;
+    lastRejectionLevel = null;
     notifyListeners();
   }
 
@@ -58,6 +63,17 @@ class ScanProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// The photo just submitted didn't look like a plant at all (see
+  /// RejectionGate) — discards *only* that photo, not the ones already
+  /// accepted into the running average, and doesn't touch attempt count
+  /// since a rejected photo was never added to it.
+  void rejectLatest(RejectionLevel level) {
+    if (images.isNotEmpty) images.removeLast();
+    lastRejectionLevel = level;
+    state = ScanState.rejected;
+    notifyListeners();
+  }
+
   void setError(String msg) {
     state        = ScanState.idle;
     errorMessage = msg;
@@ -70,6 +86,7 @@ class ScanProvider extends ChangeNotifier {
     errorMessage = null;
     lastConfidence = null;
     lastClassification = null;
+    lastRejectionLevel = null;
     notifyListeners();
   }
 }

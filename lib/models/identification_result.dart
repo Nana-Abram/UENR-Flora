@@ -13,11 +13,20 @@ class ClassificationOutput {
   final HealthStatus healthStatus;
   final double healthConfidence;
 
+  /// The full per-class species probability distribution (76 entries) this
+  /// [confidence]/[classIndex] were derived from — kept around so
+  /// RejectionGate can compute entropy across the whole distribution
+  /// instead of just looking at the single winning probability. When
+  /// [classify] is called with more than one image, this is *their*
+  /// weighted average, same as [confidence]/[classIndex].
+  final List<double> probabilities;
+
   const ClassificationOutput({
     required this.classIndex,
     required this.confidence,
     required this.healthStatus,
     required this.healthConfidence,
+    this.probabilities = const [],
   });
 }
 
