@@ -43,14 +43,24 @@ window.uenrPush = (function () {
   // flutter_service_worker.js, so flutter_bootstrap.js deliberately skips
   // serviceWorkerSettings there; see that file's dev-mode note). Without
   // this timeout, tapping the push toggle in dev mode just hangs forever
-  // with no error and no visible feedback. Release builds always register
-  // push_sw.js almost immediately, so 3s is generous there and still fast
-  // to fail in dev mode.
+  // with no error and no visible feedback.
+  //
+  // 3000ms here used to be the timeout, on the assumption that release
+  // builds "register push_sw.js almost immediately" — verified live on the
+  // actual Firebase-hosted deploy that this is false: Flutter's own
+  // bootstrap logs "prepareServiceWorker took more than 4000ms to resolve"
+  // on a real first visit, so the old 3s timeout was guaranteed to fire
+  // and misreport a working release build as needing one, every time a
+  // user tapped the toggle soon after page load. 15s is still fast enough
+  // to fail quickly in dev mode (where there's truly no SW to wait for)
+  // while giving a real first-time SW activation room to actually finish
+  // instead of racing it. Only paid once per session — `ready` resolves
+  // immediately on every call after the SW is first active.
   function swReady() {
     return Promise.race([
       navigator.serviceWorker.ready,
       new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('sw-unavailable')), 3000)),
+        setTimeout(() => reject(new Error('sw-unavailable')), 15000)),
     ]);
   }
 
