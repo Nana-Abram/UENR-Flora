@@ -33,11 +33,31 @@ class OfflineScanQueue extends ChangeNotifier {
   int get pendingCount => _pending.length;
   bool _flushing = false;
 
+  // Safety net for when flush() fails while the device is already online
+  // (e.g. a transient Supabase error, not a real connectivity drop) — the
+  // only other trigger is a genuine offline→online edge, which won't fire
+  // again on its own, so without this a failed flush left the "Syncing…"
+  // banner (see app_shell.dart's _OfflineBanner) showing forever with
+  // nothing actually retrying behind it. 45s is frequent enough to clear
+  // promptly once whatever failed recovers, without hammering Supabase.
+  Timer? _retryTimer;
+
   OfflineScanQueue(this._logger, this._profileProvider, this._dashboardProvider) {
     _load();
     ConnectivityService.listen((online) {
       if (online) unawaited(flush());
     });
+    _retryTimer = Timer.periodic(const Duration(seconds: 45), (_) {
+      if (_pending.isNotEmpty && ConnectivityService.isOnline) {
+        unawaited(flush());
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _retryTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _load() async {

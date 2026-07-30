@@ -1,5 +1,6 @@
 // lib/features/scan/scan_provider.dart
 import 'package:flutter/foundation.dart';
+import '../../models/identification_result.dart';
 
 enum ScanState { idle, preview, analyzing, needsMoreImages }
 
@@ -15,6 +16,11 @@ class ScanProvider extends ChangeNotifier {
   String? errorMessage;
   double? lastConfidence;
 
+  /// The most recent below-threshold classification — kept around so
+  /// "Use this result anyway" can jump straight to the results screen
+  /// without re-running inference.
+  ClassificationOutput? lastClassification;
+
   Uint8List? get primaryImage => images.isEmpty ? null : images.first;
   Uint8List? get latestImage => images.isEmpty ? null : images.last;
   bool get canAddMoreImages => images.length < maxImages;
@@ -27,6 +33,7 @@ class ScanProvider extends ChangeNotifier {
     state = ScanState.preview;
     errorMessage = null;
     lastConfidence = null;
+    lastClassification = null;
     notifyListeners();
   }
 
@@ -44,8 +51,9 @@ class ScanProvider extends ChangeNotifier {
 
   /// Confidence came in below threshold — ask for another angle rather than
   /// dead-ending with a plain "try again".
-  void needsMoreImages(double confidence) {
-    lastConfidence = confidence;
+  void needsMoreImages(ClassificationOutput output) {
+    lastConfidence = output.confidence;
+    lastClassification = output;
     state = ScanState.needsMoreImages;
     notifyListeners();
   }
@@ -61,6 +69,7 @@ class ScanProvider extends ChangeNotifier {
     images.clear();
     errorMessage = null;
     lastConfidence = null;
+    lastClassification = null;
     notifyListeners();
   }
 }

@@ -14,6 +14,18 @@ class ChallengeService {
   Future<String> getDeviceId() => DeviceId.get();
 
   Future<DailyChallenge?> getTodaysChallenge() async {
+    // The server-side pg_cron job that's supposed to create today's row at
+    // midnight isn't reliably firing on this project (verified via
+    // cron.job_run_details — see supabase/challenge_client_ensure.sql for
+    // the full story), so don't just trust it ran. This RPC is idempotent
+    // and cheap — a no-op after the first caller each day — so calling it
+    // unconditionally here is the actual fix, not a workaround around a
+    // workaround. Best-effort: if it fails (e.g. offline), fall through to
+    // the plain select below, which still works for any day it already ran.
+    try {
+      await _client.rpc('client_ensure_todays_challenge');
+    } catch (_) {}
+
     final row = await _client
         .from('daily_challenges')
         .select()

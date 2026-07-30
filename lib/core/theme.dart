@@ -96,6 +96,19 @@ const Color _kUnhealthyTxLight = Color(0xFFD4183D); // --destructive
 const Color _kUnhealthyTxDark  = Color(0xFFFF5C72); // brightened for contrast on dark surfaces
 Color get kUnhealthyTx => AppBrightness.isDark ? _kUnhealthyTxDark : _kUnhealthyTxLight;
 
+// Multi-photo scan retry / low-confidence accent — a warm colour distinct
+// from the green/mint palette used everywhere else, so "needs another
+// angle" reads as its own state rather than a repeated primary action.
+// Shared by the scan retry flow (progress dots, "Try Another Angle") and
+// the results screen's low-confidence banner/chip since both are the same
+// underlying feature.
+const Color _kRetryLight = Color(0xFFD2691E);
+const Color _kRetryDark  = Color(0xFFE8944F); // brightened for contrast on dark surfaces
+Color get kRetry => AppBrightness.isDark ? _kRetryDark : _kRetryLight;
+const Color _kRetryBgLight = Color(0xFFFFF3E0);
+const Color _kRetryBgDark  = Color(0xFF3A2C15);
+Color get kRetryBg => AppBrightness.isDark ? _kRetryBgDark : _kRetryBgLight;
+
 // Quiz option states (post-submit) — translucent overlays, kept constant
 // across themes; see file-level comment above for why.
 const Color kQuizCorrectBg = Color(0x4D2EA05A); // 30 % green

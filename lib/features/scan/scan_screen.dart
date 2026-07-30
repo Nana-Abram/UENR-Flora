@@ -65,17 +65,23 @@ class _ScanBody extends StatelessWidget {
                     const SizedBox(height: 24),
                     Consumer<ScanProvider>(
                       builder: (context, provider, _) {
-                        switch (provider.state) {
-                          case ScanState.idle:
-                            return _IdleView(
-                                errorMessage: provider.errorMessage);
-                          case ScanState.preview:
-                            return _PreviewView(bytes: provider.primaryImage!);
-                          case ScanState.analyzing:
-                            return _AnalyzingView(bytes: provider.latestImage!);
-                          case ScanState.needsMoreImages:
-                            return const _NeedsMoreImagesView();
-                        }
+                        final Widget child = switch (provider.state) {
+                          ScanState.idle =>
+                            _IdleView(errorMessage: provider.errorMessage),
+                          ScanState.preview =>
+                            _PreviewView(bytes: provider.primaryImage!),
+                          ScanState.analyzing =>
+                            _AnalyzingView(bytes: provider.latestImage!),
+                          ScanState.needsMoreImages =>
+                            const _NeedsMoreImagesView(),
+                        };
+                        return AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 250),
+                          child: KeyedSubtree(
+                            key: ValueKey(provider.state),
+                            child: child,
+                          ),
+                        );
                       },
                     ),
                   ],
@@ -447,40 +453,51 @@ Future<void> _runIdentification(BuildContext context) async {
     // Logging/profile tracking is analytics, not the critical path — a
     // write failure (most commonly the device being offline, but also
     // e.g. an RLS policy blocking the insert) must not stop the user from
-    // seeing their result. Queueing it here instead of just swallowing the
-    // failure is what lets an offline scan still count once back online —
-    // see OfflineScanQueue.
-    try {
-      final deviceId = await DeviceId.get();
-      await logger.log(classification: output, speciesId: species?.id, deviceId: deviceId);
-      await profileProvider.recordScan(species?.id, species != null);
-      // DashboardProvider is loaded once at app startup and otherwise never
-      // refetches — without this, Home's Total Scans/Scans Today/Scan
-      // Activity chart and the plant detail modal's "AI Confidence" line
-      // stay frozen at whatever they were when the app booted. Uses the
-      // provider reference captured up top, not context — by this point
-      // (after an await) the widget that owned this context has already
-      // been swapped out by startAnalyzing().
-      unawaited(dashboardProvider.reload());
-    } catch (_) {
-      unawaited(offlineQueue.enqueue(PendingScan.fromClassification(
-        classification: output,
-        speciesId: species?.id,
-        isCorrect: species != null,
-      )));
-    }
+    // seeing their result. This used to `await` both calls before
+    // navigating despite this comment saying otherwise — that was the
+    // actual cause of the "stuck analysing" complaint, not classifier
+    // speed (measured: classify() ~0.4s once warmed, but these two
+    // sequential Supabase round-trips were adding 10+ more seconds on top
+    // before the user ever saw a result). Fire-and-forget instead.
+    // Queueing on failure is what lets an offline scan still count once
+    // back online — see OfflineScanQueue.
+    unawaited(() async {
+      try {
+        final deviceId = await DeviceId.get();
+        await logger.log(classification: output, speciesId: species?.id, deviceId: deviceId);
+        await profileProvider.recordScan(species?.id, species != null);
+        // DashboardProvider is loaded once at app startup and otherwise never
+        // refetches — without this, Home's Total Scans/Scans Today/Scan
+        // Activity chart and the plant detail modal's "AI Confidence" line
+        // stay frozen at whatever they were when the app booted. Uses the
+        // provider reference captured up top, not context — by this point
+        // (after an await) the widget that owned this context has already
+        // been swapped out by startAnalyzing().
+        unawaited(dashboardProvider.reload());
+      } catch (_) {
+        unawaited(offlineQueue.enqueue(PendingScan.fromClassification(
+          classification: output,
+          speciesId: species?.id,
+          isCorrect: species != null,
+        )));
+      }
+    }());
 
     if (!confident) {
       if (provider.canAddMoreImages) {
-        provider.needsMoreImages(output.confidence);
+        provider.needsMoreImages(output);
       } else {
-        // Out of attempts — show the honest "still not sure" outcome rather
-        // than looping the user forever.
+        // Out of attempts — show the best guess with a low-confidence
+        // warning rather than a dead-end "couldn't identify" page. This is
+        // a separate lookup from `species` above (which stays confidence-
+        // gated so logging/profile stats are unaffected) — display-only.
+        final bestGuess = await repository.getByClassIndex(output.classIndex);
         router.go('/results',
             extra: IdentificationResult(
               classification: output,
-              species: null,
+              species: bestGuess,
               imagePath: 'in-memory',
+              attemptCount: images.length,
             ));
       }
       return;
@@ -491,6 +508,7 @@ Future<void> _runIdentification(BuildContext context) async {
           classification: output,
           species: species,
           imagePath: 'in-memory',
+          attemptCount: images.length,
         ));
   } catch (e) {
     provider.setError('Something went wrong. Please try again.');
@@ -764,12 +782,41 @@ class _NeedsMoreImagesView extends StatelessWidget {
     );
   }
 
+  /// Skips straight to the results screen with the current best guess,
+  /// instead of asking for another photo. A separate lookup from the
+  /// confidence-gated one in [_runIdentification] — this is display-only
+  /// and doesn't touch logging/profile stats.
+  Future<void> _useAnyway(BuildContext context) async {
+    final provider = context.read<ScanProvider>();
+    final output = provider.lastClassification;
+    if (output == null) return;
+    final repository = context.read<SpeciesRepository>();
+    final router = GoRouter.of(context);
+    final attemptCount = provider.images.length;
+    final species = await repository.getByClassIndex(output.classIndex);
+    if (!context.mounted) return;
+    router.go('/results',
+        extra: IdentificationResult(
+          classification: output,
+          species: species,
+          imagePath: 'in-memory',
+          attemptCount: attemptCount,
+        ));
+  }
+
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<ScanProvider>();
-    final confidencePct = ((provider.lastConfidence ?? 0) * 100).round();
-    final photosLeft = ScanProvider.maxImages - provider.images.length;
-    final exhausted = photosLeft <= 0;
+    final confidence = provider.lastConfidence ?? 0;
+    final confidencePct = (confidence * 100).round();
+    final completedAttempts = provider.images.length;
+    final photosLeft = ScanProvider.maxImages - completedAttempts;
+    // This view is only ever entered while a retry is still available (see
+    // _runIdentification — once attempts run out it routes straight to
+    // /results instead), so completedAttempts is always 1 or 2 here.
+    final message = completedAttempts >= 2
+        ? 'Almost there — one final angle'
+        : 'Good start — one more angle will help';
 
     return Container(
       width: double.infinity,
@@ -780,25 +827,17 @@ class _NeedsMoreImagesView extends StatelessWidget {
       ),
       child: Column(
         children: [
-          Icon(exhausted ? Icons.help_outline : Icons.add_a_photo_outlined,
-              size: 42, color: kDeep),
-          const SizedBox(height: 14),
-          Text(
-            exhausted
-                ? "Still not confident enough"
-                : "We're only $confidencePct% sure — add another photo",
-            style: TextStyle(
-                fontSize: 15, fontWeight: FontWeight.w600, color: kTx),
-            textAlign: TextAlign.center,
-          ),
+          _AttemptProgressDots(
+              completed: completedAttempts, total: ScanProvider.maxImages),
+          const SizedBox(height: 16),
+          Text(message,
+              style: TextStyle(
+                  fontSize: 15, fontWeight: FontWeight.w600, color: kTx),
+              textAlign: TextAlign.center),
           const SizedBox(height: 8),
           Text(
-            exhausted
-                ? "We compared ${provider.images.length} photos and still couldn't reach "
-                  '${(kConfidenceThreshold * 100).round()}% confidence. This might be a '
-                  'species outside our database — or try again with clearer, well-lit photos.'
-                : 'A different angle — the flower, bark, or a whole-plant shot — gives the '
-                  'model more to compare against your first photo.',
+            'A different angle — the flower, bark, or a whole-plant shot — gives the '
+            'model more to compare against your first photo.',
             style: TextStyle(fontSize: 12.5, color: kMu, height: 1.55),
             textAlign: TextAlign.center,
           ),
@@ -821,26 +860,65 @@ class _NeedsMoreImagesView extends StatelessWidget {
           ),
           const SizedBox(height: 20),
 
-          if (!exhausted) ...[
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: () => _pickSource(context),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: kGreen,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 13),
-                  shape: RoundedRectangleBorder(borderRadius: kBRSm),
-                  elevation: 0,
-                ),
-                icon: const Icon(Icons.add_a_photo_outlined, size: 16),
-                label: Text('Add another photo ($photosLeft left)',
-                    style: const TextStyle(
-                        fontSize: 13, fontWeight: FontWeight.w500)),
+          // Combined confidence — accumulates across attempts rather than
+          // resetting, since classify() re-runs on every collected photo
+          // together (confidence-weighted average, see TfjsClassifierService).
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Combined confidence',
+                  style: TextStyle(fontSize: 12, color: kMu)),
+              Text('$confidencePct%',
+                  style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: confidencePct < 70 ? kRetry : kHealthyTx)),
+            ],
+          ),
+          const SizedBox(height: 6),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(3),
+            child: TweenAnimationBuilder<double>(
+              tween: Tween(begin: 0, end: confidence.clamp(0.0, 1.0)),
+              duration: const Duration(milliseconds: 600),
+              curve: Curves.easeOutCubic,
+              builder: (context, value, _) => Stack(
+                children: [
+                  Container(height: 6, color: kBorder),
+                  FractionallySizedBox(
+                    widthFactor: value,
+                    child: Container(height: 6, color: kGreen),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 10),
-          ],
+          ),
+          const SizedBox(height: 20),
+
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () => _pickSource(context),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: kRetry,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 13),
+                shape: RoundedRectangleBorder(borderRadius: kBRSm),
+                elevation: 0,
+              ),
+              icon: const Icon(Icons.rotate_left, size: 16),
+              label: Text('Try Another Angle ($photosLeft left)',
+                  style: const TextStyle(
+                      fontSize: 13, fontWeight: FontWeight.w500)),
+            ),
+          ),
+          const SizedBox(height: 10),
+          TextButton(
+            onPressed: () => _useAnyway(context),
+            style: TextButton.styleFrom(foregroundColor: kMu),
+            child: const Text('Use this result anyway',
+                style: TextStyle(fontSize: 12.5)),
+          ),
           SizedBox(
             width: double.infinity,
             child: OutlinedButton(
@@ -856,6 +934,45 @@ class _NeedsMoreImagesView extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+// ── 3-dot attempt progress indicator — the just-completed dot bounces in ──
+class _AttemptProgressDots extends StatelessWidget {
+  final int completed;
+  final int total;
+  const _AttemptProgressDots({required this.completed, required this.total});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: List.generate(total, (i) {
+        final filled = i < completed;
+        final justFilled = i == completed - 1;
+        final dot = Container(
+          width: 10,
+          height: 10,
+          margin: const EdgeInsets.symmetric(horizontal: 5),
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: filled ? kRetry : kBorder,
+          ),
+        );
+        if (!justFilled) return dot;
+        // Re-keying on `completed` restarts the bounce whenever a new dot
+        // becomes the most-recently-filled one.
+        return TweenAnimationBuilder<double>(
+          key: ValueKey('dot-$i-$completed'),
+          tween: Tween(begin: 0.4, end: 1.0),
+          duration: const Duration(milliseconds: 400),
+          curve: Curves.easeOutBack,
+          builder: (context, scale, child) =>
+              Transform.scale(scale: scale, child: child),
+          child: dot,
+        );
+      }),
     );
   }
 }

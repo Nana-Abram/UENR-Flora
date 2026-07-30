@@ -99,5 +99,41 @@ window.uenrFlora = (function () {
     }
   }
 
-  return { classify: classify };
+  // Fire-and-forget: starts the model download *and* runs one throwaway
+  // inference through it, immediately instead of waiting for the first
+  // real classify() call. Just fetching the weights (the original version
+  // of this function) wasn't enough to fix the first-scan stall — WebGL
+  // backend selection and per-op shader compilation are separate one-time
+  // costs that only happen on the first model.execute(), and were still
+  // silently deferred onto the user's first real scan. Running the exact
+  // same op pipeline as classify() (fromPixels → resize → normalize →
+  // execute → data() readback, which forces a GPU→CPU sync) on a tiny
+  // dummy image forces all of that to happen now instead. Called from
+  // Dart as soon as TfjsClassifierService is constructed (app boot).
+  function preload() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 8;
+    canvas.height = 8;
+    canvas.getContext('2d').fillRect(0, 0, 8, 8);
+
+    return getModel().then(async (model) => {
+      let input, speciesTensor, healthTensor;
+      try {
+        input = tf.tidy(() => {
+          let img = tf.browser.fromPixels(canvas);
+          img = tf.image.resizeBilinear(img, [224, 224]);
+          img = img.toFloat().div(127.5).sub(1);
+          return img.expandDims(0);
+        });
+        [speciesTensor, healthTensor] = model.execute(input, ['Identity:0', 'Identity_1:0']);
+        await Promise.all([speciesTensor.data(), healthTensor.data()]);
+      } finally {
+        if (input) input.dispose();
+        if (speciesTensor) speciesTensor.dispose();
+        if (healthTensor) healthTensor.dispose();
+      }
+    });
+  }
+
+  return { classify: classify, preload: preload };
 })();

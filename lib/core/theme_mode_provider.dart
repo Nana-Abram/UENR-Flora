@@ -11,14 +11,17 @@ import 'app_brightness.dart';
 class ThemeModeProvider extends ChangeNotifier with WidgetsBindingObserver {
   static const _key = 'uenr_flora_theme_mode';
 
-  ThemeMode _mode = ThemeMode.system;
+  // Light is the app's designed default (see theme.dart: the light palette
+  // is the one that matches the Figma tokens exactly) — a device set to
+  // system dark mode should still land on light unless the user opts in.
+  ThemeMode _mode = ThemeMode.light;
   ThemeMode get mode => _mode;
 
   ThemeModeProvider() {
     WidgetsBinding.instance.addObserver(this);
-    // Resolves synchronously from the platform's current brightness so
-    // AppBrightness is correct before the very first frame, even though
-    // the persisted preference (below) only arrives after an async gap.
+    // Resolves synchronously so AppBrightness is correct before the very
+    // first frame, even though the persisted preference (below) only
+    // arrives after an async gap.
     _resolveBrightness();
     _loadPersisted();
   }
@@ -30,12 +33,13 @@ class ThemeModeProvider extends ChangeNotifier with WidgetsBindingObserver {
       _mode = switch (saved) {
         'light' => ThemeMode.light,
         'dark' => ThemeMode.dark,
-        _ => ThemeMode.system,
+        'system' => ThemeMode.system,
+        _ => ThemeMode.light,
       };
       _resolveBrightness();
       notifyListeners();
     } catch (_) {
-      // Falls back to the already-resolved system brightness above.
+      // Falls back to the already-resolved light default above.
     }
   }
 

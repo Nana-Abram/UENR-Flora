@@ -69,6 +69,9 @@ class _ResultsScreenState extends State<ResultsScreen> {
                     ),
                   ),
 
+                  if (widget.result.isLowConfidence)
+                    _LowConfidenceBanner(speciesName: species.commonName),
+
                   // Header: image + info
                   Padding(
                     padding: const EdgeInsets.fromLTRB(kSp24, 16, kSp24, 0),
@@ -76,7 +79,12 @@ class _ResultsScreenState extends State<ResultsScreen> {
                       builder: (context, constraints) {
                         final isWide = constraints.maxWidth >= kBreakpointMd;
                         final image = _PlantImage(species: species, healthy: cls.healthStatus != HealthStatus.unhealthy);
-                        final info  = _SpeciesInfo(species: species, cls: cls);
+                        final info  = _SpeciesInfo(
+                          species: species,
+                          cls: cls,
+                          attemptCount: widget.result.attemptCount,
+                          isLowConfidence: widget.result.isLowConfidence,
+                        );
                         return isWide
                             ? Row(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -187,6 +195,44 @@ class _TopBar extends StatelessWidget {
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ── Low-confidence warning — shown when every scan attempt was used and ──
+// ── confidence still never reached threshold; the best guess is shown ──
+// ── anyway rather than a dead end, but flagged as unconfirmed. ─────────
+class _LowConfidenceBanner extends StatelessWidget {
+  final String speciesName;
+  const _LowConfidenceBanner({required this.speciesName});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(kSp24, 16, kSp24, 0),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: kRetryBg,
+          border: Border.all(color: kRetry.withValues(alpha: 0.3), width: 0.5),
+          borderRadius: kBRLg,
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.info_outline, size: 17, color: kRetry),
+            const SizedBox(width: 9),
+            Expanded(
+              child: Text(
+                'Low confidence result — this might be $speciesName. '
+                'Try scanning in better lighting or closer to the leaf.',
+                style: TextStyle(fontSize: 12, color: kRetry, height: 1.5),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -547,7 +593,14 @@ class _ShareCircleBtn extends StatelessWidget {
 class _SpeciesInfo extends StatelessWidget {
   final PlantSpecies species;
   final ClassificationOutput cls;
-  const _SpeciesInfo({required this.species, required this.cls});
+  final int attemptCount;
+  final bool isLowConfidence;
+  const _SpeciesInfo({
+    required this.species,
+    required this.cls,
+    required this.attemptCount,
+    required this.isLowConfidence,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -575,6 +628,10 @@ class _SpeciesInfo extends StatelessWidget {
         const SizedBox(height: 3),
         Text('Twi: ${species.localNameTwi ?? '—'}',
             style: TextStyle(fontSize: 13, color: kMu)),
+        if (attemptCount > 1) ...[
+          const SizedBox(height: 10),
+          _AttemptChip(attemptCount: attemptCount, isLowConfidence: isLowConfidence),
+        ],
         const SizedBox(height: 18),
         ConfidenceBar(confidence: cls.confidence),
         const SizedBox(height: 20),
@@ -590,6 +647,29 @@ class _SpeciesInfo extends StatelessWidget {
           ],
         ]),
       ],
+    );
+  }
+}
+
+// ── "Confirmed in N scans" chip — green once past threshold, terracotta ──
+// ── if the best guess never reached it. Only shown when more than one ──
+// ── photo was combined; a single confident scan needs no explanation. ──
+class _AttemptChip extends StatelessWidget {
+  final int attemptCount;
+  final bool isLowConfidence;
+  const _AttemptChip({required this.attemptCount, required this.isLowConfidence});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = isLowConfidence ? kRetry : kHealthyTx;
+    final bg = isLowConfidence ? kRetryBg : kHealthyBg;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(color: bg, borderRadius: kBRPill),
+      child: Text(
+        'Confirmed in $attemptCount scan${attemptCount == 1 ? '' : 's'}',
+        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: color),
+      ),
     );
   }
 }

@@ -76,7 +76,12 @@ Widget _buildApp() {
       ),
 
       // ── Classifier ────────────────────────────────────────
+      // lazy: false — TfjsClassifierService's constructor kicks off the
+      // model download/compile in the background; that only starts early
+      // enough to matter (i.e. before the user reaches the Scan screen) if
+      // this provider is built at app boot instead of on first read.
       Provider<ClassifierService>(
+        lazy: false,
         create: (_) => TfjsClassifierService(),
       ),
 
