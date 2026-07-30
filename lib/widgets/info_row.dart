@@ -18,11 +18,11 @@ class InfoRow extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(label,
-              style: const TextStyle(fontSize: 12, color: kMu)),
+              style: TextStyle(fontSize: 12, color: kMu)),
           Flexible(
             child: Text(value,
                 textAlign: TextAlign.end,
-                style: const TextStyle(
+                style: TextStyle(
                     fontSize: 12, fontWeight: FontWeight.w500, color: kTx)),
           ),
         ],

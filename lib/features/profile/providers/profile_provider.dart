@@ -6,6 +6,7 @@ import '../../../core/navigation.dart';
 import '../../challenge/providers/challenge_provider.dart';
 import '../../notifications/services/notification_service.dart';
 import '../models/achievement_model.dart';
+import '../models/leaderboard_entry.dart';
 import '../models/profile_model.dart';
 import '../services/profile_service.dart';
 import '../widgets/achievement_toast.dart';
@@ -30,6 +31,16 @@ class ProfileProvider extends ChangeNotifier {
   List<Achievement> newlyUnlocked = [];
   String? deviceId;
   String? error;
+
+  /// Full scan history for this device, newest first — shared by the
+  /// Overview tab's "Recent Activity" list/chart and the Scan History tab,
+  /// so they don't each run their own query.
+  List<RecentScan> scans = [];
+  bool scansLoading = true;
+
+  List<LeaderboardEntry> leaderboard = [];
+  MyLeaderboardRank? myRank;
+  bool leaderboardLoading = false;
 
   ChallengeProvider? _challenge;
   bool _challengeWasSubmitted = false;
@@ -64,7 +75,10 @@ class ProfileProvider extends ChangeNotifier {
     if (_challengeWasSubmitted) return; // already handled this submission
     _challengeWasSubmitted = true;
 
-    recordChallengeCompletion(isCorrect: c.isCorrect, pointsEarned: c.pointsEarned);
+    final challengeId = c.currentChallenge?.id;
+    if (challengeId != null) {
+      recordChallengeCompletion(challengeId: challengeId, isCorrect: c.isCorrect);
+    }
 
     final id = c.deviceId;
     if (c.isCorrect && id != null && _kStreakMilestones.contains(c.streakDays)) {
@@ -96,44 +110,134 @@ class ProfileProvider extends ChangeNotifier {
       notifyListeners();
     }
     unawaited(_checkAchievements());
+    unawaited(loadScans());
+  }
+
+  Future<void> loadScans() async {
+    final id = deviceId ?? await DeviceId.get();
+    deviceId = id;
+    scansLoading = true;
+    notifyListeners();
+    try {
+      scans = await _service.getScanHistory(id);
+    } catch (_) {
+      scans = [];
+    } finally {
+      scansLoading = false;
+      notifyListeners();
+    }
+  }
+
+  /// Fetches the public top-N list and this device's own standing
+  /// together — the Leaderboard screen needs both regardless of whether
+  /// this device is opted in (see [MyLeaderboardRank.optedIn]).
+  Future<void> loadLeaderboard() async {
+    final id = deviceId ?? await DeviceId.get();
+    deviceId = id;
+    leaderboardLoading = true;
+    notifyListeners();
+    try {
+      final results = await Future.wait([
+        _service.getLeaderboard(),
+        _service.getMyLeaderboardRank(id),
+      ]);
+      leaderboard = results[0] as List<LeaderboardEntry>;
+      myRank = results[1] as MyLeaderboardRank;
+    } catch (_) {
+      // Best-effort — the screen falls back to whatever it last had (often
+      // nothing, on first load), same as every other list here.
+    } finally {
+      leaderboardLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> setLeaderboardOptIn(bool optIn) async {
+    final id = deviceId ?? await DeviceId.get();
+    deviceId = id;
+    try {
+      await _service.setLeaderboardOptIn(id, optIn);
+      await loadLeaderboard();
+    } catch (_) {
+      error = "Couldn't update your leaderboard setting. Please try again.";
+      notifyListeners();
+    }
   }
 
   Future<void> editName(String name) async {
     final id = deviceId;
     if (id == null || name.trim().isEmpty) return;
-    profile = await _service.updateProfile(id, name: name.trim());
+    try {
+      profile = await _service.updateProfile(id, name: name.trim());
+      error = null;
+    } catch (_) {
+      error = "Couldn't update your name. Please try again.";
+    }
     notifyListeners();
   }
 
   Future<void> editAvatar(String emoji) async {
     final id = deviceId;
     if (id == null) return;
-    profile = await _service.updateProfile(id, emoji: emoji);
+    try {
+      profile = await _service.updateProfile(id, emoji: emoji);
+      error = null;
+    } catch (_) {
+      error = "Couldn't update your avatar. Please try again.";
+    }
     notifyListeners();
   }
 
+  /// Unlike [loadProfile]/[loadScans], failures here are caught rather than
+  /// left to propagate — this is often called un-awaited (e.g. from
+  /// [_onChallengeChanged]), so an uncaught exception would otherwise
+  /// become an unhandled async error with no user-facing feedback at all.
   Future<void> recordScan(String? speciesId, bool isCorrect) async {
     final id = deviceId ?? await DeviceId.get();
     deviceId = id;
-    profile = await _service.recordScan(id, speciesId, isCorrect);
-    notifyListeners();
-    await _checkAchievements();
+    try {
+      profile = await _service.recordScan(id, speciesId, isCorrect);
+      error = null;
+      notifyListeners();
+      await _checkAchievements();
+      unawaited(loadScans());
+    } catch (_) {
+      error = "Couldn't save your scan. Please try again.";
+      notifyListeners();
+    }
   }
 
+  /// See [recordScan] for why this is wrapped — [recordArticleRead] is
+  /// called un-awaited from the article screen.
   Future<void> recordArticleRead(int articleId) async {
     final id = deviceId ?? await DeviceId.get();
     deviceId = id;
-    profile = await _service.recordArticleRead(id, articleId);
-    notifyListeners();
-    await _checkAchievements();
+    try {
+      profile = await _service.recordArticleRead(id, articleId);
+      error = null;
+      notifyListeners();
+      await _checkAchievements();
+    } catch (_) {
+      error = "Couldn't record that article as read.";
+      notifyListeners();
+    }
   }
 
-  Future<void> recordChallengeCompletion({required bool isCorrect, required int pointsEarned}) async {
+  /// See [recordScan] for why this is wrapped — [_onChallengeChanged] calls
+  /// this un-awaited, so a failed write here used to become an unhandled
+  /// async exception with no feedback on the Challenge screen.
+  Future<void> recordChallengeCompletion({required String challengeId, required bool isCorrect}) async {
     final id = deviceId ?? await DeviceId.get();
     deviceId = id;
-    profile = await _service.recordChallengeCompletion(id, isCorrect: isCorrect, pointsEarned: pointsEarned);
-    notifyListeners();
-    await _checkAchievements();
+    try {
+      profile = await _service.recordChallengeCompletion(id, challengeId: challengeId, isCorrect: isCorrect);
+      error = null;
+      notifyListeners();
+      await _checkAchievements();
+    } catch (_) {
+      error = "Couldn't save your challenge result. Please try again.";
+      notifyListeners();
+    }
   }
 
   Future<void> resetData() async {
@@ -144,15 +248,21 @@ class ProfileProvider extends ChangeNotifier {
     profile = null;
     unlockedAchievements = [];
     unlockedAt = {};
+    scans = [];
     deviceId = null;
     await loadProfile();
   }
 
+  /// Passes [profile] through to the service so it doesn't re-fetch a row
+  /// we just got back from the mutation that called us (see
+  /// ProfileService.checkAndUnlockAchievements) — every call site here
+  /// already has an up-to-date [profile] by the time this runs.
   Future<void> _checkAchievements() async {
     final id = deviceId;
     if (id == null) return;
     try {
-      final unlocked = await _service.checkAndUnlockAchievements(id);
+      final unlocked =
+          await _service.checkAndUnlockAchievements(id, knownProfile: profile);
       if (unlocked.isEmpty) return;
       newlyUnlocked = unlocked;
       final now = DateTime.now();

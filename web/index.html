@@ -17,19 +17,93 @@
   <base href="$FLUTTER_BASE_HREF">
 
   <meta charset="UTF-8">
-  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="A new Flutter project.">
+
+  <!--
+    Without this, mobile browsers assume a ~980px desktop viewport and
+    scale the whole page down to fit — the app would render tiny and need
+    pinch-zoom just to use, on exactly the phones this install target is
+    for. Verified live at a 390px mobile viewport: content now fills the
+    screen at 1:1 scale instead of rendering as a shrunk desktop layout.
+
+    Deliberately written without user-scalable=no/maximum-scale=1 here —
+    but note the Flutter web engine (compiled into main.dart.js) overwrites
+    this tag at runtime and sets both anyway, to keep native browser
+    pinch-zoom from fighting its own canvas coordinate/gesture system. That
+    engine behavior isn't controllable from project-level files, so this
+    tag's real effect is limited to the brief pre-engine-boot paint — kept
+    permissive anyway on the chance a future engine version defers to it.
+  -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <!--
+    Every script this app loads is vendored locally — passkeys_bundle.js,
+    tfjs.min.js, classifier.js, share.js, speech.js, connectivity.js, and
+    (as of the --no-web-resources-cdn build flag, see README.md) Flutter's
+    own CanvasKit renderer too, served from build/web/canvaskit/ instead of
+    https://www.gstatic.com. That CDN dependency used to be required here
+    and is deliberately NOT allowlisted anymore: a hung/blocked fetch to it
+    was traced live to a permanently blank page with zero console errors —
+    the exact failure this policy would otherwise need to tolerate forever.
+    Building without --no-web-resources-cdn will silently reintroduce that
+    single point of failure even though nothing here would flag it.
+    script-src is otherwise restricted to 'self' to block a real class of
+    future XSS (a script tag injected via some future innerHTML/templating
+    bug can't execute from an arbitrary host — 'unsafe-inline' below does
+    NOT reopen that: it only permits inline <script>...</script> content
+    and inline event handlers, not <script src="https://foreign-host/...">,
+    which 'self' still blocks regardless). Other directives (img-src,
+    connect-src, etc.) are intentionally left unrestricted since this app
+    talks to Supabase's storage/API on a different origin.
+
+    'wasm-unsafe-eval' is needed for CanvasKit's WebAssembly compilation.
+    'unsafe-eval' is separately required by tfjs.min.js, which does a plain
+    string-eval during its own setup — without it, window.tf loads as an
+    empty object and every real scan silently fails with a generic
+    "Something went wrong" error while the Scan screen itself still renders
+    fine, which is how that went unnoticed for a while. Verified live
+    (headless browser, real classify() call against the actual model) that
+    'unsafe-eval' fixes it.
+
+    'unsafe-inline' was added after `flutter run -d chrome` came up as a
+    fully blank page with zero errors in the terminal — the *only* signal
+    was a CSP violation logged to the browser console (not the terminal):
+    "Executing inline script violates ... script-src". DWDS's dev-mode
+    bootstrap (DDC's module loader, only present in debug/`flutter run`
+    builds — a release build's flutter_bootstrap.js never does this)
+    injects a small inline <script> block, and it embeds this session's
+    random debug-service port, so it's a *different* script body (and
+    thus a different CSP hash) every single `flutter run`, making a
+    one-off 'sha256-...' allowlist entry useless beyond the one session
+    that produced it. Given 'unsafe-eval' already lets injected code run
+    via eval() of a string, permitting inline <script> tags too is a
+    modest incremental relaxation, not a new category of risk — the
+    "no foreign-host scripts" protection above is what actually mattered
+    and is unchanged.
+  -->
+  <meta http-equiv="Content-Security-Policy"
+        content="script-src 'self' 'wasm-unsafe-eval' 'unsafe-eval' 'unsafe-inline'; object-src 'none';">
+
+  <meta name="description"
+        content="AI-based plant identification and environmental awareness for the University of Energy and Natural Resources campus.">
+
+  <!--
+    Tints the browser chrome (Android Chrome's toolbar, the task-switcher
+    card header) to match the app's own kDeep hero color, both before and
+    after "Add to Home Screen" — manifest.json's theme_color only applies
+    once installed, this applies immediately in-tab too.
+  -->
+  <meta name="theme-color" content="#1A3C2D">
 
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="plantid_app">
+  <meta name="apple-mobile-web-app-title" content="UENR Flora">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
 
-  <title>plantid_app</title>
+  <title>UENR Flora</title>
   <link rel="manifest" href="manifest.json">
   <!--
     Required by supabase_flutter's transitive `passkeys` dependency: its web
@@ -41,7 +115,18 @@
     external fetch was unreliable and would intermittently crash the app on
     page load when it failed.
   -->
-  <script src="passkeys_bundle.js"></script>
+  <!--
+    All seven scripts below are `defer` rather than plain/blocking tags, so
+    none of them hold up HTML parsing on every route just to be ready for
+    the scan screen. `defer` (unlike `async`) guarantees they still run in
+    this exact document order, right before DOMContentLoaded — which
+    matters because passkeys_bundle.js's registrant genuinely must finish
+    running before flutter_bootstrap.js starts the app (see its comment
+    below). Mixing in `async` here instead would NOT preserve that order
+    and could reintroduce the crash-before-runApp() failure this comment
+    warns about.
+  -->
+  <script src="passkeys_bundle.js" defer></script>
 
   <!--
     Species/health classifier. Vendored locally (npm @tensorflow/tfjs
@@ -50,10 +135,39 @@
     reliability reason as passkeys_bundle.js above. classifier.js defines
     window.uenrFlora, called from lib/services/tfjs_classifier_service.dart.
   -->
-  <script src="tfjs.min.js"></script>
-  <script src="classifier.js"></script>
+  <script src="tfjs.min.js" defer></script>
+  <script src="classifier.js" defer></script>
+
+  <!--
+    Native share-sheet wrapper (Web Share API) with a clipboard fallback.
+    Defines window.uenrShare, called from
+    lib/services/web_share_service.dart.
+  -->
+  <script src="share.js" defer></script>
+
+  <!--
+    Read-aloud wrapper (Web Speech API's speechSynthesis). Defines
+    window.uenrSpeech, called from lib/services/web_speech_service.dart.
+  -->
+  <script src="speech.js" defer></script>
+
+  <!--
+    navigator.onLine + online/offline event wrapper. Defines
+    window.uenrConnectivity, called from
+    lib/services/connectivity_service.dart.
+  -->
+  <script src="connectivity.js" defer></script>
+
+  <!--
+    Web Push subscribe/unsubscribe bridge. Defines window.uenrPush, called
+    from lib/services/web_push_service.dart. The service worker that
+    actually receives push messages is push_sw.js, registered by
+    flutter_bootstrap.js (see that file's comment) instead of Flutter's
+    default flutter_service_worker.js.
+  -->
+  <script src="push.js" defer></script>
 </head>
 <body>
-  <script src="flutter_bootstrap.js" async></script>
+  <script src="flutter_bootstrap.js" defer></script>
 </body>
 </html>

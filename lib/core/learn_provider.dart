@@ -17,9 +17,25 @@ class LearnProvider extends ChangeNotifier {
   bool loading = true;
   String? error;
 
+  String _searchQuery = '';
+  String get searchQuery => _searchQuery;
+
+  void setSearchQuery(String q) {
+    _searchQuery = q;
+    notifyListeners();
+  }
+
   List<LearnArticleDb> get displayedArticles {
-    if (selectedCategoryId == null) return allArticles;
-    return allArticles.where((a) => a.categoryId == selectedCategoryId).toList();
+    Iterable<LearnArticleDb> result = allArticles;
+    if (selectedCategoryId != null) {
+      result = result.where((a) => a.categoryId == selectedCategoryId);
+    }
+    final q = _searchQuery.trim().toLowerCase();
+    if (q.isNotEmpty) {
+      result = result.where((a) =>
+          a.title.toLowerCase().contains(q) || a.summary.toLowerCase().contains(q));
+    }
+    return result.toList();
   }
 
   void selectCategory(int? id) {

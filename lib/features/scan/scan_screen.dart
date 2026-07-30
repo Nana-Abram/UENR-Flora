@@ -14,8 +14,11 @@ import '../../models/identification_result.dart';
 import '../../services/classifier_service.dart';
 import '../../services/species_repository.dart';
 import '../../services/identification_logger.dart';
+import '../../widgets/app_footer.dart';
 import '../../widgets/breadcrumb.dart';
 import '../profile/providers/profile_provider.dart';
+import 'offline_scan_queue.dart';
+import 'pending_scan.dart';
 import 'scan_provider.dart';
 
 class ScanScreen extends StatelessWidget {
@@ -49,14 +52,14 @@ class _ScanBody extends StatelessWidget {
                   children: [
                     const Breadcrumb(current: 'AI Scanner'),
                     const SizedBox(height: 16),
-                    const Text('AI Plant Scanner',
+                    Text('AI Plant Scanner',
                         style: TextStyle(
                             fontFamily: kFontDisplay,
                             fontSize: 32,
                             fontWeight: FontWeight.w600,
                             color: kTx)),
                     const SizedBox(height: 6),
-                    const Text(
+                    Text(
                         "Identify any plant instantly using our AI model trained on UENR's botanical database.",
                         style: TextStyle(fontSize: 14, color: kMu)),
                     const SizedBox(height: 24),
@@ -85,7 +88,11 @@ class _ScanBody extends StatelessWidget {
           hasScrollBody: false,
           child: Column(
             mainAxisAlignment: MainAxisAlignment.end,
-            children: [_ScanFooter()],
+            children: [
+              AppFooter(
+                message: 'All inference runs in-browser · no image is sent to any server',
+              ),
+            ],
           ),
         ),
       ],
@@ -124,12 +131,12 @@ class _IdleView extends StatelessWidget {
             ),
             child: Row(
               children: [
-                const Icon(Icons.error_outline, size: 17, color: kUnhealthyTx),
+                Icon(Icons.error_outline, size: 17, color: kUnhealthyTx),
                 const SizedBox(width: 9),
                 Expanded(
                   child: Text(errorMessage!,
                       style:
-                          const TextStyle(fontSize: 12, color: kUnhealthyTx)),
+                          TextStyle(fontSize: 12, color: kUnhealthyTx)),
                 ),
               ],
             ),
@@ -197,7 +204,7 @@ class _CapturePanel extends StatelessWidget {
                             shape: BoxShape.circle,
                             color: Colors.white.withValues(alpha: 0.1),
                           ),
-                          child: const Icon(Icons.camera_alt_outlined,
+                          child: Icon(Icons.camera_alt_outlined,
                               size: 26, color: kMint),
                         ),
                         const SizedBox(height: 12),
@@ -238,7 +245,7 @@ class _CapturePanel extends StatelessWidget {
                 onPressed: () => onPick(ImageSource.gallery),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: kTx,
-                  side: const BorderSide(color: kBorder, width: 0.5),
+                  side: BorderSide(color: kBorder, width: 0.5),
                   backgroundColor: kWhite,
                   padding: const EdgeInsets.symmetric(vertical: 13),
                   shape: RoundedRectangleBorder(borderRadius: kBRSm),
@@ -281,7 +288,7 @@ class _TipsCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
               Icon(Icons.camera_alt_outlined, size: 15, color: kTx),
               SizedBox(width: 8),
@@ -300,12 +307,12 @@ class _TipsCard extends StatelessWidget {
                       width: 5,
                       height: 5,
                       margin: const EdgeInsets.only(top: 6, right: 9),
-                      decoration: const BoxDecoration(
+                      decoration: BoxDecoration(
                           shape: BoxShape.circle, color: kGreen),
                     ),
                     Expanded(
                       child: Text(t,
-                          style: const TextStyle(
+                          style: TextStyle(
                               fontSize: 12, color: kMu, height: 1.4)),
                     ),
                   ],
@@ -346,16 +353,16 @@ class _ResultsPlaceholderPanel extends StatelessWidget {
                   decoration:
                       BoxDecoration(color: kLight, borderRadius: kBRLg),
                   child:
-                      const Icon(Icons.eco_outlined, size: 30, color: kGreen),
+                      Icon(Icons.eco_outlined, size: 30, color: kGreen),
                 ),
                 const SizedBox(height: 16),
-                const Text('Results will appear here',
+                Text('Results will appear here',
                     style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
                         color: kTx)),
                 const SizedBox(height: 6),
-                const Text(
+                Text(
                     'Capture or upload a plant image to begin identification.',
                     style: TextStyle(fontSize: 12, color: kMu),
                     textAlign: TextAlign.center),
@@ -399,11 +406,11 @@ class _StatTile extends StatelessWidget {
       child: Column(
         children: [
           Text(value,
-              style: const TextStyle(
+              style: TextStyle(
                   fontSize: 16, fontWeight: FontWeight.w600, color: kDeep)),
           const SizedBox(height: 2),
           Text(label,
-              style: const TextStyle(fontSize: 11, color: kMu),
+              style: TextStyle(fontSize: 11, color: kMu),
               textAlign: TextAlign.center),
         ],
       ),
@@ -425,6 +432,7 @@ Future<void> _runIdentification(BuildContext context) async {
   final logger = context.read<IdentificationLogger>();
   final profileProvider = context.read<ProfileProvider>();
   final dashboardProvider = context.read<DashboardProvider>();
+  final offlineQueue = context.read<OfflineScanQueue>();
   // Captured before startAnalyzing() swaps this widget out of the tree —
   // the router outlives the context, so it stays valid after the await.
   final router = GoRouter.of(context);
@@ -437,11 +445,14 @@ Future<void> _runIdentification(BuildContext context) async {
     final species = confident ? await repository.getByClassIndex(output.classIndex) : null;
 
     // Logging/profile tracking is analytics, not the critical path — a
-    // write failure (e.g. an RLS policy blocking the insert) must not
-    // stop the user from seeing their result.
+    // write failure (most commonly the device being offline, but also
+    // e.g. an RLS policy blocking the insert) must not stop the user from
+    // seeing their result. Queueing it here instead of just swallowing the
+    // failure is what lets an offline scan still count once back online —
+    // see OfflineScanQueue.
     try {
       final deviceId = await DeviceId.get();
-      await logger.log(classification: output, species: species, deviceId: deviceId);
+      await logger.log(classification: output, speciesId: species?.id, deviceId: deviceId);
       await profileProvider.recordScan(species?.id, species != null);
       // DashboardProvider is loaded once at app startup and otherwise never
       // refetches — without this, Home's Total Scans/Scans Today/Scan
@@ -451,7 +462,13 @@ Future<void> _runIdentification(BuildContext context) async {
       // (after an await) the widget that owned this context has already
       // been swapped out by startAnalyzing().
       unawaited(dashboardProvider.reload());
-    } catch (_) {}
+    } catch (_) {
+      unawaited(offlineQueue.enqueue(PendingScan.fromClassification(
+        classification: output,
+        speciesId: species?.id,
+        isCorrect: species != null,
+      )));
+    }
 
     if (!confident) {
       if (provider.canAddMoreImages) {
@@ -516,7 +533,7 @@ class _PreviewView extends StatelessWidget {
                 border: Border.all(color: kMint, width: 0.5),
                 borderRadius: kBRLg,
               ),
-              child: const Row(
+              child: Row(
                 children: [
                   Icon(Icons.check_circle_outline, size: 17, color: kDeep),
                   SizedBox(width: 9),
@@ -540,14 +557,14 @@ class _PreviewView extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Ready to identify',
+              Text('Ready to identify',
                   style: TextStyle(
                       fontSize: 14, fontWeight: FontWeight.w500, color: kTx)),
               const SizedBox(height: 5),
               Text(
                 'The model compares your leaf against $totalSpecies campus species. '
                 'Results below 70% confidence prompt a retake.',
-                style: const TextStyle(fontSize: 12, color: kMu, height: 1.6),
+                style: TextStyle(fontSize: 12, color: kMu, height: 1.6),
               ),
               const SizedBox(height: 16),
               SizedBox(
@@ -574,7 +591,7 @@ class _PreviewView extends StatelessWidget {
                   onPressed: () => context.read<ScanProvider>().reset(),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: kMu,
-                    side: const BorderSide(color: kBorder, width: 0.5),
+                    side: BorderSide(color: kBorder, width: 0.5),
                     padding: const EdgeInsets.symmetric(vertical: 10),
                     shape: RoundedRectangleBorder(borderRadius: kBRSm),
                   ),
@@ -601,30 +618,6 @@ class _PreviewView extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────
-// FOOTER
-// ─────────────────────────────────────────────────────────────
-class _ScanFooter extends StatelessWidget {
-  const _ScanFooter();
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.white,
-      elevation: 4,
-      shadowColor: Colors.black,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: kSp24, vertical: 18),
-        child: const Text(
-          'All inference runs in-browser · no image is sent to any server',
-          style: TextStyle(fontSize: 11, color: kMu),
-          textAlign: TextAlign.center,
-        ),
-      ),
-    );
-  }
-}
 
 // ─────────────────────────────────────────────────────────────
 // STATE 3 — ANALYZING
@@ -701,7 +694,7 @@ class _AnalyzingViewState extends State<_AnalyzingView>
               ),
             ),
             const SizedBox(height: 28),
-            const CircularProgressIndicator(
+            CircularProgressIndicator(
               color: kDeep,
               backgroundColor: kLight,
               strokeWidth: 3,
@@ -709,13 +702,13 @@ class _AnalyzingViewState extends State<_AnalyzingView>
             const SizedBox(height: 18),
             Text(
               photoCount > 1 ? 'Analysing $photoCount photos...' : 'Analysing your leaf...',
-              style: const TextStyle(
+              style: TextStyle(
                   fontSize: 15, fontWeight: FontWeight.w500, color: kTx)),
             const SizedBox(height: 6),
             Text(
               'Comparing features against '
               '${context.watch<SpeciesProvider>().totalCount} campus species',
-              style: const TextStyle(fontSize: 13, color: kMu),
+              style: TextStyle(fontSize: 13, color: kMu),
               textAlign: TextAlign.center,
             ),
           ],
@@ -794,7 +787,7 @@ class _NeedsMoreImagesView extends StatelessWidget {
             exhausted
                 ? "Still not confident enough"
                 : "We're only $confidencePct% sure — add another photo",
-            style: const TextStyle(
+            style: TextStyle(
                 fontSize: 15, fontWeight: FontWeight.w600, color: kTx),
             textAlign: TextAlign.center,
           ),
@@ -806,7 +799,7 @@ class _NeedsMoreImagesView extends StatelessWidget {
                   'species outside our database — or try again with clearer, well-lit photos.'
                 : 'A different angle — the flower, bark, or a whole-plant shot — gives the '
                   'model more to compare against your first photo.',
-            style: const TextStyle(fontSize: 12.5, color: kMu, height: 1.55),
+            style: TextStyle(fontSize: 12.5, color: kMu, height: 1.55),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 18),
@@ -854,7 +847,7 @@ class _NeedsMoreImagesView extends StatelessWidget {
               onPressed: () => context.read<ScanProvider>().reset(),
               style: OutlinedButton.styleFrom(
                 foregroundColor: kMu,
-                side: const BorderSide(color: kBorder, width: 0.5),
+                side: BorderSide(color: kBorder, width: 0.5),
                 padding: const EdgeInsets.symmetric(vertical: 10),
                 shape: RoundedRectangleBorder(borderRadius: kBRSm),
               ),

@@ -18,7 +18,7 @@ import '../services/challenge_service.dart';
 
 const _kGold = Color(0xFFFAC775);
 
-const Map<ChallengeType, CategoryStyle> _typeStyles = {
+Map<ChallengeType, CategoryStyle> _typeStyles = {
   ChallengeType.identifyPhoto: CategoryStyle(kDeep, Color(0xFFE3EDE7)),
   ChallengeType.nameIt: CategoryStyle(kGreen, Color(0xFFE6F2EC)),
   ChallengeType.findIt: CategoryStyle(kAccent, kAccentL),
@@ -137,8 +137,9 @@ class _ChallengeHeader extends StatelessWidget {
     final challenge = provider.currentChallenge;
 
     return Container(
+      width: double.infinity,
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
+        gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [kDeep, kGreen],
@@ -159,7 +160,7 @@ class _ChallengeHeader extends StatelessWidget {
                       color: Colors.white)),
               const SizedBox(height: 4),
               Text(_formatDate(DateTime.now()),
-                  style: const TextStyle(fontSize: 13, color: kMint)),
+                  style: TextStyle(fontSize: 13, color: kMint)),
             ],
           );
 
@@ -233,7 +234,7 @@ class _ChallengeContent extends StatelessWidget {
     final provider = context.watch<ChallengeProvider>();
 
     if (provider.isLoading) {
-      return const Padding(
+      return Padding(
         padding: EdgeInsets.symmetric(vertical: 60),
         child: Center(child: CircularProgressIndicator(color: kDeep)),
       );
@@ -243,11 +244,11 @@ class _ChallengeContent extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 40),
         child: Column(
           children: [
-            Text(provider.error!, style: const TextStyle(fontSize: 13, color: kMu)),
+            Text(provider.error!, style: TextStyle(fontSize: 13, color: kMu)),
             const SizedBox(height: 8),
             TextButton(
               onPressed: () => context.read<ChallengeProvider>().loadTodaysChallenge(),
-              child: const Text('Retry', style: TextStyle(fontSize: 13, color: kGreen)),
+              child: Text('Retry', style: TextStyle(fontSize: 13, color: kGreen)),
             ),
           ],
         ),
@@ -279,7 +280,7 @@ class _NoChallengeState extends StatelessWidget {
         borderRadius: kBR2xl,
         border: Border.all(color: kBorder, width: 0.5),
       ),
-      child: const Column(
+      child: Column(
         children: [
           Icon(Icons.event_busy_outlined, size: 40, color: kMu),
           SizedBox(height: 14),
@@ -334,14 +335,14 @@ class _AlreadyCompletedCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text("You've completed today's challenge",
+                    Text("You've completed today's challenge",
                         style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: kTx)),
                     const SizedBox(height: 4),
                     Text(
                       completion != null
                           ? 'Your answer: ${completion.answerGiven ?? '—'}  ·  +${completion.pointsEarned} pts'
                           : 'Come back tomorrow for a new one.',
-                      style: const TextStyle(fontSize: 12, color: kMu),
+                      style: TextStyle(fontSize: 12, color: kMu),
                     ),
                   ],
                 ),
@@ -361,7 +362,7 @@ class _AlreadyCompletedCard extends StatelessWidget {
                   color: kAccent,
                 ),
               ),
-              const Expanded(
+              Expanded(
                 child: _StatBlock(
                   icon: Icons.timer_outlined,
                   label: 'Next challenge in',
@@ -395,12 +396,12 @@ class _StatBlock extends StatelessWidget {
         Row(children: [
           Icon(icon, size: 14, color: color),
           const SizedBox(width: 6),
-          Text(label, style: const TextStyle(fontSize: 11, color: kMu)),
+          Text(label, style: TextStyle(fontSize: 11, color: kMu)),
         ]),
         const SizedBox(height: 6),
         valueWidget ??
             Text(value ?? '—',
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: kTx)),
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: kTx)),
       ],
     );
   }
@@ -443,17 +444,17 @@ class _ActiveChallengeCard extends StatelessWidget {
               ),
               const SizedBox(height: 14),
               Text(challenge.title,
-                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: kTx)),
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: kTx)),
               const SizedBox(height: 6),
               Text(challenge.description,
-                  style: const TextStyle(fontSize: 13, color: kMu, height: 1.5)),
+                  style: TextStyle(fontSize: 13, color: kMu, height: 1.5)),
               if (challenge.speciesId != null) ...[
                 const SizedBox(height: 16),
                 _ChallengeSpeciesImage(speciesId: challenge.speciesId!),
               ],
               const SizedBox(height: 18),
               Text(challenge.question,
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: kTx, height: 1.4)),
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: kTx, height: 1.4)),
               const SizedBox(height: 18),
               if (challenge.type == ChallengeType.findIt)
                 const _FindItInput()
@@ -499,9 +500,9 @@ class _ElapsedTimer extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const Icon(Icons.timer_outlined, size: 12, color: kMu),
+        Icon(Icons.timer_outlined, size: 12, color: kMu),
         const SizedBox(width: 4),
-        Text('${seconds}s', style: const TextStyle(fontSize: 11, color: kMu)),
+        Text('${seconds}s', style: TextStyle(fontSize: 11, color: kMu)),
       ],
     );
   }
@@ -529,10 +530,13 @@ class _ChallengeSpeciesImage extends StatelessWidget {
         child: CachedNetworkImage(
           imageUrl: imageUrl,
           fit: BoxFit.cover,
+          // Banner is 180 tall, full card width.
+          memCacheWidth: 700,
+          memCacheHeight: 360,
           placeholder: (_, __) => Container(color: kMuted),
           errorWidget: (_, __, ___) => Container(
             color: kMuted,
-            child: const Center(child: Icon(Icons.eco_outlined, size: 32, color: kMu)),
+            child: Center(child: Icon(Icons.eco_outlined, size: 32, color: kMu)),
           ),
         ),
       ),
@@ -600,12 +604,12 @@ class _OptionCard extends StatelessWidget {
         bg = kHealthyBg;
         border = kHealthyTx;
         text = kHealthyTx;
-        trailing = const Icon(Icons.check_circle, size: 20, color: kHealthyTx);
+        trailing = Icon(Icons.check_circle, size: 20, color: kHealthyTx);
       } else if (selected) {
         bg = kUnhealthyBg;
         border = kUnhealthyTx;
         text = kUnhealthyTx;
-        trailing = const Icon(Icons.cancel, size: 20, color: kUnhealthyTx);
+        trailing = Icon(Icons.cancel, size: 20, color: kUnhealthyTx);
       } else {
         text = kMu;
       }
@@ -664,7 +668,7 @@ class _FindItInputState extends State<_FindItInput> {
       controller: _controller,
       enabled: !provider.isSubmitted,
       onChanged: (v) => context.read<ChallengeProvider>().selectAnswer(v.trim()),
-      style: const TextStyle(fontSize: 14, color: kTx),
+      style: TextStyle(fontSize: 14, color: kTx),
       decoration: const InputDecoration(
         hintText: 'Type the plant name...',
       ),
@@ -723,9 +727,19 @@ class _ResultPanel extends StatelessWidget {
   final DailyChallenge challenge;
   const _ResultPanel({required this.challenge});
 
-  static final Map<String, GlobalKey> _keys = {};
-  static GlobalKey keyFor(String challengeId) =>
-      _keys.putIfAbsent(challengeId, () => GlobalKey());
+  // Only the current day's challenge is ever mounted at a time, so this
+  // only needs to remember one (id, key) pair — not accumulate a new
+  // GlobalKey for every distinct challenge this browser tab has ever seen
+  // across however many days it stays open.
+  static String? _cachedChallengeId;
+  static GlobalKey? _cachedKey;
+  static GlobalKey keyFor(String challengeId) {
+    if (_cachedChallengeId != challengeId || _cachedKey == null) {
+      _cachedChallengeId = challengeId;
+      _cachedKey = GlobalKey();
+    }
+    return _cachedKey!;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -770,7 +784,7 @@ class _ResultPanel extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Row(children: [
+                  Row(children: [
                     Icon(Icons.lightbulb_outline, size: 16, color: kGreen),
                     SizedBox(width: 7),
                     Text('Did you know?',
@@ -778,7 +792,7 @@ class _ResultPanel extends StatelessWidget {
                   ]),
                   const SizedBox(height: 7),
                   Text(provider.funFact!,
-                      style: const TextStyle(fontSize: 13, color: kTx, height: 1.6)),
+                      style: TextStyle(fontSize: 13, color: kTx, height: 1.6)),
                 ],
               ),
             ),
@@ -796,10 +810,10 @@ class _ResultPanel extends StatelessWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.local_fire_department, size: 16, color: kAccent),
+                  Icon(Icons.local_fire_department, size: 16, color: kAccent),
                   const SizedBox(width: 6),
                   Text('🔥 ${provider.streakDays}-day streak! Keep it up!',
-                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: kAccent)),
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: kAccent)),
                 ],
               ),
             ),
@@ -811,8 +825,14 @@ class _ResultPanel extends StatelessWidget {
           const SizedBox(height: 18),
           const Divider(),
           const SizedBox(height: 14),
-          const Row(
-            mainAxisAlignment: MainAxisAlignment.center,
+          // Wrap rather than Row — the countdown ticks every second and at
+          // some widths (esp. this panel's ~303px minimum) the two texts
+          // together came within a fraction of a pixel of the container's
+          // width, tripping Flutter's overflow assertion. Wrap just flows
+          // the countdown onto its own line instead of ever overflowing.
+          Wrap(
+            alignment: WrapAlignment.center,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               Text('Come back tomorrow — next challenge in ',
                   style: TextStyle(fontSize: 12, color: kMu)),

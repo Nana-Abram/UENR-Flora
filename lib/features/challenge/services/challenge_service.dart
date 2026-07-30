@@ -57,14 +57,34 @@ class ChallengeService {
     final isCorrect = answer == challenge.correctAnswer;
     final points = isCorrect ? challenge.pointsReward : 0;
 
-    await _client.from('challenge_completions').insert({
-      'device_id': deviceId,
-      'challenge_id': challengeId,
-      'points_earned': points,
-      'answer_given': answer,
-      'is_correct': isCorrect,
-      'time_taken_s': timeTakenSeconds,
-    });
+    try {
+      await _client.from('challenge_completions').insert({
+        'device_id': deviceId,
+        'challenge_id': challengeId,
+        'points_earned': points,
+        'answer_given': answer,
+        'is_correct': isCorrect,
+        'time_taken_s': timeTakenSeconds,
+      });
+    } on PostgrestException catch (e) {
+      // 23505 = unique_violation on (device_id, challenge_id) — a
+      // double-click or a request retried after a timeout landed twice.
+      // The first insert already went through, so return its result
+      // instead of erroring (and instead of silently inserting a second
+      // row and awarding points again).
+      if (e.code == '23505') {
+        final existing = await getCompletion(deviceId, challengeId);
+        if (existing != null) {
+          return ChallengeResult(
+            isCorrect: existing.isCorrect,
+            pointsEarned: existing.pointsEarned,
+            correctAnswer: challenge.correctAnswer,
+            funFact: challenge.funFact,
+          );
+        }
+      }
+      rethrow;
+    }
 
     return ChallengeResult(
       isCorrect: isCorrect,
@@ -92,19 +112,27 @@ class ChallengeService {
       final d = DateTime.parse(raw);
       dates.add(DateTime(d.year, d.month, d.day));
     }
-    if (dates.isEmpty) return 0;
-
-    final now = DateTime.now();
-    var cursor = DateTime(now.year, now.month, now.day);
-    if (!dates.contains(cursor)) {
-      cursor = cursor.subtract(const Duration(days: 1));
-      if (!dates.contains(cursor)) return 0;
-    }
-    var streak = 0;
-    while (dates.contains(cursor)) {
-      streak++;
-      cursor = cursor.subtract(const Duration(days: 1));
-    }
-    return streak;
+    return streakFromDates(dates);
   }
+}
+
+/// Pure streak-counting logic pulled out of [ChallengeService.getCompletionStreak]
+/// so it's testable without a Supabase round-trip — [dates] is the set of
+/// calendar days (already truncated to y/m/d) the device answered correctly.
+/// [now] defaults to the real clock; tests pass a fixed value instead.
+int streakFromDates(Set<DateTime> dates, {DateTime? now}) {
+  if (dates.isEmpty) return 0;
+
+  final today = now ?? DateTime.now();
+  var cursor = DateTime(today.year, today.month, today.day);
+  if (!dates.contains(cursor)) {
+    cursor = cursor.subtract(const Duration(days: 1));
+    if (!dates.contains(cursor)) return 0;
+  }
+  var streak = 0;
+  while (dates.contains(cursor)) {
+    streak++;
+    cursor = cursor.subtract(const Duration(days: 1));
+  }
+  return streak;
 }

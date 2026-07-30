@@ -2,14 +2,29 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/notification_model.dart';
 
+/// Matches DeviceId's UUID v4 format exactly (lowercase hex + hyphens only).
+final _uuidPattern =
+    RegExp(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$');
+
 class NotificationService {
   final SupabaseClient _client;
   NotificationService(this._client);
+
+  /// [deviceId] gets interpolated directly into a PostgREST `.or()` filter
+  /// string below — always a well-formed UUID from [DeviceId] in practice,
+  /// but a comma or parenthesis in an unchecked value would alter the
+  /// filter's meaning. Validating the shape first closes that off.
+  static void _requireValidDeviceId(String deviceId) {
+    if (!_uuidPattern.hasMatch(deviceId)) {
+      throw ArgumentError.value(deviceId, 'deviceId', 'must be a UUID');
+    }
+  }
 
   /// Device-specific notifications plus broadcast ones (device_id IS NULL),
   /// newest first, with expired rows filtered out client-side (simpler and
   /// more portable than relying on chained PostgREST `or()` filters).
   Future<List<AppNotification>> getNotifications(String deviceId) async {
+    _requireValidDeviceId(deviceId);
     final rows = await _client
         .from('notifications')
         .select()
@@ -27,6 +42,7 @@ class NotificationService {
   }
 
   Future<void> markAllAsRead(String deviceId) async {
+    _requireValidDeviceId(deviceId);
     await _client
         .from('notifications')
         .update({'is_read': true})
@@ -35,6 +51,7 @@ class NotificationService {
   }
 
   Future<int> getUnreadCount(String deviceId) async {
+    _requireValidDeviceId(deviceId);
     final rows = await _client
         .from('notifications')
         .select('id')

@@ -1,4 +1,5 @@
 // lib/features/challenge/models/challenge_model.dart
+import 'package:flutter/foundation.dart';
 
 enum ChallengeType {
   identifyPhoto,
@@ -18,7 +19,13 @@ enum ChallengeType {
       case 'family_match':
         return ChallengeType.familyMatch;
       case 'true_false':
+        return ChallengeType.trueFalse;
       default:
+        // Falls back to trueFalse either way, but a typo'd/new
+        // challenge_type value should be visible in debug builds rather
+        // than silently rendering as "TRUE OR FALSE".
+        debugPrint('ChallengeType.fromDb: unrecognized challenge_type "$value", '
+            'defaulting to trueFalse');
         return ChallengeType.trueFalse;
     }
   }

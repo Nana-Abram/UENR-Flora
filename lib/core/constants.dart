@@ -22,6 +22,14 @@ const double kMaxContentWidth = 1400.0;
 /// Identifications, detail modal) since species records carry no colour of
 /// their own. Picked via [colorPairForId] so the same species always gets
 /// the same colour within a session.
+///
+/// Deliberately separate from category_style.dart's `categoryStyle` — that
+/// colours the growth-type ("Trees"/"Herbs"/etc.) badge shown alongside a
+/// card, this colours the card/placeholder background itself. Every call
+/// site in the app keeps this split (verified across Explorer, Home,
+/// Results, Profile, Challenge); don't merge them into one lookup, or
+/// species within the same category would lose their distinct placeholder
+/// colours.
 const List<List<int>> kPlantCardPalette = [
   [0xFFFAEEDA, 0xFFBA7517],
   [0xFFEAF3DE, 0xFF3B6D11],

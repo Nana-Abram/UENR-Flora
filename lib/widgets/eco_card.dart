@@ -43,7 +43,7 @@ class EcoCard extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
                 Text(title,
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 13, fontWeight: FontWeight.w500, color: kTx)),
               ],
             ),
@@ -52,11 +52,11 @@ class EcoCard extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.only(bottom: 5),
               child: Text(title,
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontSize: 13, fontWeight: FontWeight.w500, color: kTx)),
             ),
           Text(body,
-              style: const TextStyle(
+              style: TextStyle(
                   fontSize: 12, color: kMu, height: 1.55)),
         ],
       ),

@@ -15,10 +15,10 @@ class ConfidenceBar extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text('AI confidence',
+            Text('AI confidence',
                 style: TextStyle(fontSize: 12, color: kMu)),
             Text('$pct%',
-                style: const TextStyle(
+                style: TextStyle(
                     fontSize: 12, fontWeight: FontWeight.w500, color: kDeep)),
           ],
         ),

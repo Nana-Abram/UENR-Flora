@@ -1,4 +1,5 @@
 // lib/models/plant_species.dart
+import '../core/json_utils.dart';
 
 /// Full species record returned by Supabase, with family name and facts joined.
 class PlantSpecies {
@@ -51,6 +52,7 @@ class PlantSpecies {
   });
 
   factory PlantSpecies.fromMap(Map<String, dynamic> map) {
+    const table = 'plant_species';
     final factsRaw   = map['did_you_know_facts'] as List<dynamic>? ?? const [];
     final familyRaw  = map['plant_families'] as Map<String, dynamic>?;
     final imagesRaw  = map['species_images'] as List<dynamic>? ?? const [];
@@ -59,9 +61,9 @@ class PlantSpecies {
           .compareTo((b['display_order'] as int?) ?? 0));
 
     return PlantSpecies(
-      id:                    map['id'] as String,
-      scientificName:        map['scientific_name'] as String,
-      commonName:            map['common_name'] as String,
+      id:                    requireField<String>(map, 'id', table: table),
+      scientificName:        requireField<String>(map, 'scientific_name', table: table),
+      commonName:            requireField<String>(map, 'common_name', table: table),
       localNameTwi:          map['local_name_twi'] as String?,
       familyName:            familyRaw?['name'] as String?,
       growthHabit:           map['growth_habit'] as String?,
@@ -78,12 +80,14 @@ class PlantSpecies {
       sunlightRequirements:  map['sunlight_requirements'] as String?,
       soilPreference:        map['soil_preference'] as String?,
       referenceImageUrl:     map['reference_image_url'] as String?,
-      modelClassIndex:       map['model_class_index'] as int,
+      modelClassIndex:       requireField<int>(map, 'model_class_index', table: table),
       didYouKnowFacts: factsRaw
-          .map((f) => (f as Map<String, dynamic>)['fact_text'] as String)
+          .map((f) => requireField<String>(f as Map<String, dynamic>, 'fact_text',
+              table: 'plant_facts'))
           .toList(),
-      galleryImageUrls:
-          sortedImages.map((img) => img['image_url'] as String).toList(),
+      galleryImageUrls: sortedImages
+          .map((img) => requireField<String>(img, 'image_url', table: 'species_images'))
+          .toList(),
     );
   }
 }

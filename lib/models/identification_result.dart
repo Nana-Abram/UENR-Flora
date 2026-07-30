@@ -2,7 +2,10 @@
 import '../core/constants.dart';
 import 'plant_species.dart';
 
-enum HealthStatus { healthy, unhealthy, unknown }
+// Both classifier implementations only ever emit a binary healthy/
+// unhealthy call from a single sigmoid threshold — there's no "the model
+// wasn't sure" path, so an `unknown` value would only ever be dead code.
+enum HealthStatus { healthy, unhealthy }
 
 class ClassificationOutput {
   final int classIndex;

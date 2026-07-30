@@ -32,6 +32,38 @@ class ExplorerProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  bool _compareMode = false;
+  bool get compareMode => _compareMode;
+
+  final Set<String> _compareSelection = {};
+  Set<String> get compareSelection => _compareSelection;
+
+  void toggleCompareMode() {
+    _compareMode = !_compareMode;
+    _compareSelection.clear();
+    notifyListeners();
+  }
+
+  /// Selecting a third species bumps the oldest one rather than being a
+  /// no-op — lets a device change its mind about one pick without having
+  /// to deselect it first.
+  void toggleCompareSelection(String speciesId) {
+    if (_compareSelection.contains(speciesId)) {
+      _compareSelection.remove(speciesId);
+    } else {
+      if (_compareSelection.length >= 2) {
+        _compareSelection.remove(_compareSelection.first);
+      }
+      _compareSelection.add(speciesId);
+    }
+    notifyListeners();
+  }
+
+  void clearCompareSelection() {
+    _compareSelection.clear();
+    notifyListeners();
+  }
+
   List<PlantSpecies> apply(List<PlantSpecies> all) {
     Iterable<PlantSpecies> result = all;
     switch (_filter) {

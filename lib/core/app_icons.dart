@@ -28,7 +28,11 @@ const IconData kIconFlipCam  = Icons.flip_camera_ios;
 // ── Results & health ───────────────────────────────────────
 const IconData kIconHealthy   = Icons.check_circle_outline;
 const IconData kIconUnhealthy = Icons.warning_amber_rounded;
-const IconData kIconWarning   = Icons.warning_amber_rounded;
+// Aliased (not a separately-repeated Icons.* value) so "change it here
+// once" is actually true — this used to independently repeat
+// Icons.warning_amber_rounded, so editing kIconUnhealthy alone silently
+// left kIconWarning pointing at the old icon.
+const IconData kIconWarning   = kIconUnhealthy;
 const IconData kIconCancel    = Icons.cancel_outlined;
 
 // ── Ecology / care ─────────────────────────────────────────
@@ -58,13 +62,30 @@ const IconData kIconSort       = Icons.sort_outlined;
 const IconData kIconBiodiversity  = Icons.eco_outlined;
 const IconData kIconClimate       = Icons.public_outlined;
 const IconData kIconSustainability = Icons.recycling;
-const IconData kIconWildlife      = Icons.air_outlined;
-const IconData kIconWater2        = Icons.water_drop_outlined;
 
 // ── Feature cards ──────────────────────────────────────────
-const IconData kIconAI            = Icons.psychology_outlined;
 const IconData kIconEncyclopedia  = Icons.menu_book_outlined;
 
 // ── Quiz ───────────────────────────────────────────────────
-const IconData kIconQuizCorrect = Icons.check_circle_outline;
-const IconData kIconQuizWrong   = Icons.cancel_outlined;
+// Aliased to the Results & health icons above for the same reason as
+// kIconWarning — same icons, one real source of truth each.
+const IconData kIconQuizCorrect = kIconHealthy;
+const IconData kIconQuizWrong   = kIconCancel;
+
+// ── Profile & achievements ────────────────────────────────
+const IconData kIconEdit      = Icons.edit_outlined;
+const IconData kIconStreak    = Icons.local_fire_department_outlined;
+const IconData kIconTrophy    = Icons.emoji_events_outlined;
+const IconData kIconTarget    = Icons.track_changes_outlined;
+const IconData kIconMedal     = Icons.military_tech_outlined;
+const IconData kIconLock      = Icons.lock_outline;
+const IconData kIconDelete    = Icons.delete_outline;
+const IconData kIconClose     = Icons.close;
+const IconData kIconCrown     = Icons.workspace_premium_outlined;
+const IconData kIconNight     = Icons.dark_mode_outlined;
+const IconData kIconMedical   = Icons.medical_services_outlined;
+const IconData kIconPets      = Icons.pets_outlined;
+const IconData kIconScience   = Icons.biotech_outlined;
+const IconData kIconGrass     = Icons.grass_outlined;
+const IconData kIconSpa       = Icons.spa_outlined;
+const IconData kIconBolt      = Icons.bolt_outlined;

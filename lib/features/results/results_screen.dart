@@ -6,8 +6,11 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../../core/theme.dart';
 import '../../core/constants.dart';
 import '../../core/species_provider.dart';
+import '../../core/favorites_provider.dart';
+import '../../core/species_text.dart';
 import '../../models/identification_result.dart';
 import '../../models/plant_species.dart';
+import '../../services/web_share_service.dart';
 import '../../widgets/plant_detail_modal.dart';
 import '../../widgets/pill_badge.dart';
 import '../../widgets/confidence_bar.dart';
@@ -15,6 +18,8 @@ import '../../widgets/fact_card.dart';
 import '../../widgets/eco_card.dart';
 import '../../widgets/care_row.dart';
 import '../../widgets/hover_lift.dart';
+import '../../widgets/hover_zoom_image.dart';
+import '../../widgets/read_aloud_button.dart';
 
 class ResultsScreen extends StatefulWidget {
   final IdentificationResult result;
@@ -57,7 +62,12 @@ class _ResultsScreenState extends State<ResultsScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _TopBar(healthy: cls.healthStatus != HealthStatus.unhealthy),
+                  _TopBar(
+                    healthy: cls.healthStatus != HealthStatus.unhealthy,
+                    trailing: ReadAloudButton(
+                      textBuilder: () => identificationReadText(species, cls),
+                    ),
+                  ),
 
                   // Header: image + info
                   Padding(
@@ -85,7 +95,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
 
                   // Tab bar
                   Container(
-                    decoration: const BoxDecoration(
+                    decoration: BoxDecoration(
                       border: Border(bottom: BorderSide(color: kBorder, width: 0.5)),
                     ),
                     child: SingleChildScrollView(
@@ -122,7 +132,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
             width: double.infinity,
             color: Colors.white,
             padding: const EdgeInsets.all(20),
-            child: const Center(
+            child: Center(
               child: Text(
                 'UENR Flora Environmental Learning Hub. Group 4 Final Year Project',
                 style: TextStyle(fontSize: 11, color:kMu),
@@ -151,7 +161,8 @@ class _ResultsScreenState extends State<ResultsScreen> {
 // ── header row without pinning the page to a fixed background colour. ──
 class _TopBar extends StatelessWidget {
   final bool? healthy; // null in the no-result state — pill is hidden
-  const _TopBar({this.healthy});
+  final Widget? trailing;
+  const _TopBar({this.healthy, this.trailing});
 
   @override
   Widget build(BuildContext context) {
@@ -165,10 +176,16 @@ class _TopBar extends StatelessWidget {
             style: TextButton.styleFrom(
               foregroundColor: kMu, padding: EdgeInsets.zero),
             icon: const Icon(Icons.arrow_back_outlined, size: 16),
-            label: const Text('Back to scanner',
+            label: Text('Back to scanner',
                 style: TextStyle(fontSize: 12, color: kMu)),
           ),
-          if (healthy != null) PillBadge(healthy: healthy!),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (trailing != null) ...[trailing!, const SizedBox(width: 12)],
+              if (healthy != null) PillBadge(healthy: healthy!),
+            ],
+          ),
         ],
       ),
     );
@@ -203,14 +220,14 @@ class _NoResultView extends StatelessWidget {
       ),
       child: Column(
         children: [
-          const Icon(Icons.help_outline, size: 48, color: kDeep),
+          Icon(Icons.help_outline, size: 48, color: kDeep),
           const SizedBox(height: 12),
           Text(title,
-              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: kTx),
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: kTx),
               textAlign: TextAlign.center),
           const SizedBox(height: 8),
           Text(body,
-              style: const TextStyle(fontSize: 12, color: kMu, height: 1.55),
+              style: TextStyle(fontSize: 12, color: kMu, height: 1.55),
               textAlign: TextAlign.center),
           const SizedBox(height: 20),
           ElevatedButton(
@@ -263,7 +280,7 @@ class _IconInfoTile extends StatelessWidget {
       children: [
         Container(
           width: 34, height: 34,
-          decoration: const BoxDecoration(color: kLight, shape: BoxShape.circle),
+          decoration: BoxDecoration(color: kLight, shape: BoxShape.circle),
           child: Icon(icon, size: 16, color: kDeep),
         ),
         const SizedBox(width: 10),
@@ -271,10 +288,10 @@ class _IconInfoTile extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(label, style: const TextStyle(fontSize: 11, color: kMu)),
+              Text(label, style: TextStyle(fontSize: 11, color: kMu)),
               const SizedBox(height: 2),
               Text(value,
-                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: kTx),
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: kTx),
                   maxLines: 1, overflow: TextOverflow.ellipsis),
             ],
           ),
@@ -343,12 +360,12 @@ class _DetailCard extends StatelessWidget {
                 children: [
                   Icon(rows[i].icon, size: 15, color: kMu),
                   const SizedBox(width: 10),
-                  Text(rows[i].label, style: const TextStyle(fontSize: 13, color: kMu)),
+                  Text(rows[i].label, style: TextStyle(fontSize: 13, color: kMu)),
                   const Spacer(),
                   Flexible(
                     child: Text(rows[i].value,
                         textAlign: TextAlign.end,
-                        style: const TextStyle(
+                        style: TextStyle(
                             fontSize: 13, fontWeight: FontWeight.w500, color: kTx)),
                   ),
                 ],
@@ -394,6 +411,10 @@ class _PlantImage extends StatelessWidget {
                   ? CachedNetworkImage(
                       imageUrl: imageUrl,
                       fit: BoxFit.cover,
+                      // Main result image is 260 tall, full content-column
+                      // width — generous cap well under typical source res.
+                      memCacheWidth: 800,
+                      memCacheHeight: 600,
                       placeholder: (_, __) => Container(
                         color: cardColor,
                         child: Center(
@@ -417,12 +438,9 @@ class _PlantImage extends StatelessWidget {
           bottom: 10, right: 10,
           child: Row(
             children: [
-              _CircleBtn(icon: Icons.share_outlined, onTap: () {}),
+              _ShareCircleBtn(species: species),
               const SizedBox(width: 6),
-              _CircleBtn(
-                  icon: Icons.favorite_border,
-                  iconColor: kUnhealthyTx,
-                  onTap: () {}),
+              _FavoriteCircleBtn(speciesId: species.id),
             ],
           ),
         ),
@@ -435,20 +453,92 @@ class _CircleBtn extends StatelessWidget {
   final IconData icon;
   final Color? iconColor;
   final VoidCallback onTap;
-  const _CircleBtn({required this.icon, this.iconColor, required this.onTap});
+  final String label;
+  const _CircleBtn({
+    required this.icon,
+    this.iconColor,
+    required this.onTap,
+    required this.label,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 30, height: 30,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: Colors.white.withValues(alpha: 0.92),
+    // Same Semantics+Tooltip pattern as ReadAloudButton's circle variant —
+    // an icon-only button needs a label for screen readers and mouse
+    // hover alike, not just a bare tap target.
+    return Semantics(
+      button: true,
+      label: label,
+      child: Tooltip(
+        message: label,
+        excludeFromSemantics: true,
+        child: GestureDetector(
+          onTap: onTap,
+          child: Container(
+            width: 30, height: 30,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.white.withValues(alpha: 0.92),
+            ),
+            child: Icon(icon, size: 14, color: iconColor ?? kTx),
+          ),
         ),
-        child: Icon(icon, size: 14, color: iconColor ?? kTx),
       ),
+    );
+  }
+}
+
+/// Heart toggle backed by [FavoritesProvider] — filled/pink when this
+/// species is favorited, outline otherwise.
+class _FavoriteCircleBtn extends StatelessWidget {
+  final String speciesId;
+  const _FavoriteCircleBtn({required this.speciesId});
+
+  @override
+  Widget build(BuildContext context) {
+    final favorites = context.watch<FavoritesProvider>();
+    final active = favorites.isFavorite(speciesId);
+    return _CircleBtn(
+      icon: active ? Icons.favorite : Icons.favorite_border,
+      iconColor: kUnhealthyTx,
+      onTap: () => context.read<FavoritesProvider>().toggle(speciesId),
+      label: active ? 'Remove from favorites' : 'Add to favorites',
+    );
+  }
+}
+
+/// Shares a species via the native share sheet (falling back to copying a
+/// link to the clipboard) and surfaces the outcome with a snackbar.
+class _ShareCircleBtn extends StatelessWidget {
+  final PlantSpecies species;
+  const _ShareCircleBtn({required this.species});
+
+  Future<void> _share(BuildContext context) async {
+    final url = '${Uri.base.origin}/#/explorer?species=${species.id}';
+    final result = await WebShareService.share(
+      title: species.commonName,
+      text: '${species.commonName} (${species.scientificName}) — UENR Flora',
+      url: url,
+    );
+    if (!context.mounted) return;
+    final message = switch (result) {
+      ShareResult.copied => 'Link copied to clipboard',
+      ShareResult.failed => "Couldn't share this plant right now",
+      ShareResult.shared || ShareResult.cancelled => null,
+    };
+    if (message != null) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(message)));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!WebShareService.isSupported) return const SizedBox.shrink();
+    return _CircleBtn(
+      icon: Icons.share_outlined,
+      onTap: () => _share(context),
+      label: 'Share this plant',
     );
   }
 }
@@ -469,7 +559,7 @@ class _SpeciesInfo extends StatelessWidget {
           children: [
             Expanded(
               child: Text(species.commonName,
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontSize: 26, fontWeight: FontWeight.w600, color: kTx)),
             ),
             const Padding(
@@ -480,11 +570,11 @@ class _SpeciesInfo extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         Text(species.scientificName,
-            style: const TextStyle(
+            style: TextStyle(
                 fontSize: 14, color: kGreen, fontStyle: FontStyle.italic)),
         const SizedBox(height: 3),
         Text('Twi: ${species.localNameTwi ?? '—'}',
-            style: const TextStyle(fontSize: 13, color: kMu)),
+            style: TextStyle(fontSize: 13, color: kMu)),
         const SizedBox(height: 18),
         ConfidenceBar(confidence: cls.confidence),
         const SizedBox(height: 20),
@@ -551,7 +641,7 @@ class _TabOverview extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Row(children: [
+                Row(children: [
                   Icon(Icons.warning_amber_rounded,
                       size: 15, color: kUnhealthyTx),
                   SizedBox(width: 7),
@@ -656,7 +746,7 @@ class _TabFacts extends StatelessWidget {
   Widget build(BuildContext context) {
     final facts = species.didYouKnowFacts;
     if (facts.isEmpty) {
-      return const Padding(
+      return Padding(
         padding: EdgeInsets.only(bottom: 20),
         child: Text('No facts available yet.',
             style: TextStyle(fontSize: 13, color: kMu)),
@@ -708,7 +798,7 @@ class _SimilarSpecies extends StatelessWidget {
       children: [
         const Divider(height: 1),
         const SizedBox(height: 20),
-        const Row(
+        Row(
           children: [
             Icon(Icons.eco_outlined, size: 16, color: kDeep),
             SizedBox(width: 7),
@@ -721,12 +811,13 @@ class _SimilarSpecies extends StatelessWidget {
         GridView.builder(
           shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
           gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-            maxCrossAxisExtent: 200,
+            maxCrossAxisExtent: 225,
             crossAxisSpacing: 14, mainAxisSpacing: 14,
             childAspectRatio: 0.95,
           ),
           itemCount: similar.length,
-          itemBuilder: (_, i) => _SimilarSpeciesTile(species: similar[i]),
+          itemBuilder: (_, i) =>
+              _SimilarSpeciesTile(key: ValueKey(similar[i].id), species: similar[i]),
         ),
       ],
     );
@@ -735,7 +826,7 @@ class _SimilarSpecies extends StatelessWidget {
 
 class _SimilarSpeciesTile extends StatelessWidget {
   final PlantSpecies species;
-  const _SimilarSpeciesTile({required this.species});
+  const _SimilarSpeciesTile({super.key, required this.species});
 
   @override
   Widget build(BuildContext context) {
@@ -766,28 +857,34 @@ class _SimilarSpeciesTile extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
-                  child: species.referenceImageUrl != null
-                      ? CachedNetworkImage(
-                          imageUrl: species.referenceImageUrl!,
-                          fit: BoxFit.cover,
-                          width: double.infinity,
-                          placeholder: (_, __) => Container(
+                  child: HoverZoomImage(
+                    child: species.referenceImageUrl != null
+                        ? CachedNetworkImage(
+                            imageUrl: species.referenceImageUrl!,
+                            fit: BoxFit.cover,
+                            width: double.infinity,
+                            // Similar-species tile caps at 225 logical px
+                            // wide (maxCrossAxisExtent), aspect ratio ~1.
+                            memCacheWidth: 450,
+                            memCacheHeight: 450,
+                            placeholder: (_, __) => Container(
+                              color: cardColor,
+                              child: Center(
+                                  child: Icon(Icons.eco_outlined, size: 26, color: iconColor)),
+                            ),
+                            errorWidget: (_, __, ___) => Container(
+                              color: cardColor,
+                              child: Center(
+                                  child: Icon(Icons.eco_outlined, size: 26, color: iconColor)),
+                            ),
+                          )
+                        : Container(
                             color: cardColor,
+                            width: double.infinity,
                             child: Center(
-                                child: Icon(Icons.eco_outlined, size: 24, color: iconColor)),
+                                child: Icon(Icons.eco_outlined, size: 26, color: iconColor)),
                           ),
-                          errorWidget: (_, __, ___) => Container(
-                            color: cardColor,
-                            child: Center(
-                                child: Icon(Icons.eco_outlined, size: 24, color: iconColor)),
-                          ),
-                        )
-                      : Container(
-                          color: cardColor,
-                          width: double.infinity,
-                          child: Center(
-                              child: Icon(Icons.eco_outlined, size: 24, color: iconColor)),
-                        ),
+                  ),
                 ),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
@@ -795,13 +892,13 @@ class _SimilarSpeciesTile extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(species.commonName,
-                          style: const TextStyle(
+                          style: TextStyle(
                               fontSize: 12, fontWeight: FontWeight.w500, color: kTx),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis),
                       const SizedBox(height: 1),
                       Text(species.familyName ?? 'Unclassified',
-                          style: const TextStyle(fontSize: 10, color: kMu),
+                          style: TextStyle(fontSize: 10, color: kMu),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis),
                     ],
@@ -813,8 +910,8 @@ class _SimilarSpeciesTile extends StatelessWidget {
               right: 8, bottom: 8,
               child: Container(
                 width: 22, height: 22,
-                decoration: const BoxDecoration(color: kLight, shape: BoxShape.circle),
-                child: const Icon(Icons.chevron_right, size: 14, color: kDeep),
+                decoration: BoxDecoration(color: kLight, shape: BoxShape.circle),
+                child: Icon(Icons.chevron_right, size: 14, color: kDeep),
               ),
             ),
           ],

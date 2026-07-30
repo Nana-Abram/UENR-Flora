@@ -68,7 +68,7 @@ class _AchievementToastState extends State<AchievementToast> {
                 child: Container(
                   margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                   constraints: const BoxConstraints(maxWidth: 420),
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
                   decoration: BoxDecoration(
                     color: kDeep,
                     borderRadius: kBRXl,
@@ -82,6 +82,7 @@ class _AchievementToastState extends State<AchievementToast> {
                     ],
                   ),
                   child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       Container(
                         width: 48, height: 48,
@@ -90,10 +91,10 @@ class _AchievementToastState extends State<AchievementToast> {
                           shape: BoxShape.circle,
                         ),
                         child: Center(
-                          child: Text(a.emoji, style: const TextStyle(fontSize: 24)),
+                          child: Icon(a.icon, size: 24, color: _kGold),
                         ),
                       ),
-                      const SizedBox(width: 14),
+                      const SizedBox(width: 16),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -104,14 +105,26 @@ class _AchievementToastState extends State<AchievementToast> {
                                     fontSize: 11,
                                     fontWeight: FontWeight.w600,
                                     color: _kGold,
+                                    height: 1.4,
+                                    decoration: TextDecoration.none,
                                     letterSpacing: 0.5)),
-                            const SizedBox(height: 3),
+                            const SizedBox(height: 6),
                             Text(a.title,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
-                                    fontSize: 15, fontWeight: FontWeight.w600, color: Colors.white)),
-                            const SizedBox(height: 2),
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.white,
+                                    height: 1.35,
+                                    decoration: TextDecoration.none)),
+                            const SizedBox(height: 5),
                             Text('+${a.points} points',
-                                style: const TextStyle(fontSize: 12, color: kMint)),
+                                style: TextStyle(
+                                    fontSize: 12,
+                                    color: kMint,
+                                    height: 1.3,
+                                    decoration: TextDecoration.none)),
                           ],
                         ),
                       ),

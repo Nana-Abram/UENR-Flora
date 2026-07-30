@@ -1,11 +1,13 @@
 {
-    "name": "plantid_app",
-    "short_name": "plantid_app",
+    "name": "UENR Flora",
+    "short_name": "UENR Flora",
     "start_url": ".",
+    "id": ".",
+    "scope": "/",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#1A3C2D",
+    "theme_color": "#1A3C2D",
+    "description": "AI-based plant identification and environmental awareness for the University of Energy and Natural Resources campus.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

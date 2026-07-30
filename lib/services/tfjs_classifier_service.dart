@@ -18,13 +18,28 @@ external JSPromise<JSObject> _classify(JSUint8Array bytes);
 class TfjsClassifierService implements ClassifierService {
   @override
   Future<ClassificationOutput> classify(List<Uint8List> images) async {
-    assert(images.isNotEmpty);
+    // A real check, not `assert` — asserts are stripped from release web
+    // builds, so this guarded nothing in production. Without it, an empty
+    // list reaches `perImageSpecies.first`/`.reduce` below and fails with
+    // an opaque "Bad state: no element" instead of a clear error.
+    if (images.isEmpty) {
+      throw ArgumentError.value(images, 'images', 'must not be empty');
+    }
+
+    // Each photo's inference is independent — run them concurrently instead
+    // of one after another. Safe with respect to TF.js's tf.tidy() scoping
+    // in web/classifier.js: that scope's body is synchronous, so JS's
+    // single-threaded event loop can never interleave one call's tidy
+    // block with another's, even when multiple classify() calls are
+    // in-flight at once.
+    final results = await Future.wait(
+      images.map((bytes) => _classify(bytes.toJS).toDart),
+    );
 
     final perImageSpecies = <List<double>>[];
     final perImageHealth = <double>[];
 
-    for (final bytes in images) {
-      final result = await _classify(bytes.toJS).toDart;
+    for (final result in results) {
       final speciesJS = result.getProperty('species'.toJS) as JSArray;
       final healthJS = result.getProperty('health'.toJS) as JSNumber;
 

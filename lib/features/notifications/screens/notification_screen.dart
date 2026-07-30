@@ -25,30 +25,35 @@ class NotificationScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return CustomScrollView(
-      slivers: [
-        SliverToBoxAdapter(
-          child: Align(
-            alignment: Alignment.topCenter,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 720),
-              child: const Padding(
-                padding: EdgeInsets.fromLTRB(kSp24, kSp16, kSp24, kSp32),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Breadcrumb(current: 'Notifications'),
-                    SizedBox(height: 16),
-                    _Header(),
-                    SizedBox(height: 20),
-                    _NotificationList(),
-                  ],
+    return RefreshIndicator(
+      color: kDeep,
+      onRefresh: () => context.read<NotificationProvider>().loadNotifications(),
+      child: CustomScrollView(
+        slivers: [
+          SliverToBoxAdapter(
+            child: Align(
+              alignment: Alignment.topCenter,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 720),
+                child: const Padding(
+                  padding: EdgeInsets.fromLTRB(kSp24, kSp16, kSp24, kSp32),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Breadcrumb(current: 'Notifications'),
+                      SizedBox(height: 16),
+                      _Header(),
+                      SizedBox(height: 20),
+                      _PushNotificationsCard(),
+                      _NotificationList(),
+                    ],
+                  ),
                 ),
               ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -65,7 +70,7 @@ class _Header extends StatelessWidget {
 
     return Row(
       children: [
-        const Text('Notifications',
+        Text('Notifications',
             style: TextStyle(fontFamily: kFontDisplay, fontSize: 22, fontWeight: FontWeight.w500, color: kTx)),
         if (provider.unreadCount > 0) ...[
           const SizedBox(width: 10),
@@ -73,17 +78,96 @@ class _Header extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
             decoration: BoxDecoration(color: kUnhealthyBg, borderRadius: kBRPill),
             child: Text('${provider.unreadCount} new',
-                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: kUnhealthyTx)),
+                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: kUnhealthyTx)),
           ),
         ],
         const Spacer(),
         if (provider.unreadCount > 0)
           TextButton(
             onPressed: () => context.read<NotificationProvider>().markAllRead(),
-            child: const Text('Mark all read',
+            child: Text('Mark all read',
                 style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: kGreen)),
           ),
       ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// A2. WEB PUSH TOGGLE — hidden entirely on unsupported browsers/platforms
+// (WebPushService.isSupported is false outside a secure-context web build),
+// so there's no dead control offering a feature that can only ever fail.
+// ─────────────────────────────────────────────────────────────
+class _PushNotificationsCard extends StatelessWidget {
+  const _PushNotificationsCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = context.watch<NotificationProvider>();
+    if (!provider.pushSupported) return const SizedBox.shrink();
+
+    final denied = provider.pushPermission == 'denied';
+    final subtitle = denied
+        ? "Blocked in your browser's site settings — enable notifications there to turn this back on."
+        : provider.pushSubscribed
+            ? "You'll get today's challenge reminder even when this tab is closed."
+            : 'Get a reminder on this device when a new daily challenge is ready.';
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 20),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: kWhite,
+        borderRadius: kBRXl,
+        border: Border.all(color: kBorder, width: 0.5),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(color: kAccentL, shape: BoxShape.circle),
+                alignment: Alignment.center,
+                child: Icon(Icons.notifications_active_outlined, size: 18, color: kAccent),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Push notifications',
+                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: kTx)),
+                    const SizedBox(height: 3),
+                    Text(subtitle, style: TextStyle(fontSize: 12, color: kMu, height: 1.4)),
+                  ],
+                ),
+              ),
+              if (!denied)
+                Semantics(
+                  label: 'Push notifications',
+                  toggled: provider.pushSubscribed,
+                  child: Switch(
+                    value: provider.pushSubscribed,
+                    activeThumbColor: kAccent,
+                    onChanged: provider.pushBusy
+                        ? null
+                        : (value) => value
+                            ? context.read<NotificationProvider>().enablePush()
+                            : context.read<NotificationProvider>().disablePush(),
+                  ),
+                ),
+            ],
+          ),
+          if (provider.pushError != null) ...[
+            const SizedBox(height: 10),
+            Text(provider.pushError!,
+                style: TextStyle(fontSize: 12, color: kUnhealthyTx, height: 1.4)),
+          ],
+        ],
+      ),
     );
   }
 }
@@ -99,7 +183,7 @@ class _NotificationList extends StatelessWidget {
     final provider = context.watch<NotificationProvider>();
 
     if (provider.isLoading) {
-      return const Padding(
+      return Padding(
         padding: EdgeInsets.symmetric(vertical: 60),
         child: Center(child: CircularProgressIndicator(color: kDeep)),
       );
@@ -151,7 +235,7 @@ class _DateGroup extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(label,
-              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: kMu, letterSpacing: 0.3)),
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: kMu, letterSpacing: 0.3)),
           const SizedBox(height: 10),
           ...items.map((n) => Padding(
                 padding: const EdgeInsets.only(bottom: 10),
@@ -204,11 +288,11 @@ class _NotificationCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(n.title,
-                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: kTx)),
+                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: kTx)),
                     const SizedBox(height: 3),
-                    Text(n.body, style: const TextStyle(fontSize: 13, color: kMu, height: 1.4)),
+                    Text(n.body, style: TextStyle(fontSize: 13, color: kMu, height: 1.4)),
                     const SizedBox(height: 6),
-                    Text(_timeAgo(n.createdAt), style: const TextStyle(fontSize: 11, color: kMu)),
+                    Text(_timeAgo(n.createdAt), style: TextStyle(fontSize: 11, color: kMu)),
                   ],
                 ),
               ),
@@ -241,7 +325,7 @@ class _EmptyState extends StatelessWidget {
         borderRadius: kBR2xl,
         border: Border.all(color: kBorder, width: 0.5),
       ),
-      child: const Column(
+      child: Column(
         children: [
           Text('🔔', style: TextStyle(fontSize: 40)),
           SizedBox(height: 14),

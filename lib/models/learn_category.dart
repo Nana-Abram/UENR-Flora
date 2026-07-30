@@ -1,4 +1,5 @@
 // lib/models/learn_category.dart
+import '../core/json_utils.dart';
 
 class LearnCategory {
   final int id;
@@ -18,8 +19,8 @@ class LearnCategory {
   });
 
   factory LearnCategory.fromMap(Map<String, dynamic> m) => LearnCategory(
-        id: m['id'] as int,
-        name: m['name'] as String,
+        id: requireField<int>(m, 'id', table: 'learn_categories'),
+        name: requireField<String>(m, 'name', table: 'learn_categories'),
         description: m['description'] as String?,
         iconName: m['icon_name'] as String?,
         colorHex: m['color_hex'] as String?,

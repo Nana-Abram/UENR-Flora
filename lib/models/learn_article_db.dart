@@ -1,4 +1,5 @@
 // lib/models/learn_article_db.dart
+import '../core/json_utils.dart';
 
 class LearnArticleDb {
   final int id;
@@ -24,10 +25,10 @@ class LearnArticleDb {
   });
 
   factory LearnArticleDb.fromMap(Map<String, dynamic> m) => LearnArticleDb(
-        id: m['id'] as int,
+        id: requireField<int>(m, 'id', table: 'learn_articles'),
         categoryId: m['category_id'] as int?,
-        title: m['title'] as String,
-        summary: m['summary'] as String,
+        title: requireField<String>(m, 'title', table: 'learn_articles'),
+        summary: requireField<String>(m, 'summary', table: 'learn_articles'),
         body: m['body'] as String?,
         readTimeMin: (m['read_time_min'] as int?) ?? 3,
         isFeatured: (m['is_featured'] as bool?) ?? false,

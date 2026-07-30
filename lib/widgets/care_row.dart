@@ -44,11 +44,11 @@ class CareRow extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(title,
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 13, fontWeight: FontWeight.w500, color: kTx)),
                 const SizedBox(height: 2),
                 Text(body,
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 12, color: kMu, height: 1.5)),
               ],
             ),

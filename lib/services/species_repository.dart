@@ -56,14 +56,46 @@ class SpeciesRepository {
     return rows.map(PlantSpecies.fromMap).toList();
   }
 
-  /// Returns every identification log's timestamp, health status, predicted
-  /// species, and confidence score — used by the Home dashboard (total scans,
-  /// healthy %, monthly scan-activity chart) and the Explorer (per-species
-  /// average AI confidence), without needing a dedicated aggregation endpoint.
-  Future<List<Map<String, dynamic>>> getScanLogs() async {
+  /// All-time scan/health totals — computed server-side (see
+  /// supabase/dashboard_aggregates.sql) instead of fetching every
+  /// identification_logs row just to count/tally them client-side.
+  Future<({int totalScans, int healthyCount, int unhealthyCount})> getDashboardTotals() async {
+    final rows = await _client.rpc('dashboard_totals') as List;
+    if (rows.isEmpty) return (totalScans: 0, healthyCount: 0, unhealthyCount: 0);
+    final row = rows.first as Map<String, dynamic>;
+    return (
+      totalScans: (row['total_scans'] as num).toInt(),
+      healthyCount: (row['healthy_count'] as num).toInt(),
+      unhealthyCount: (row['unhealthy_count'] as num).toInt(),
+    );
+  }
+
+  /// All-time average AI confidence per species id — same reasoning as
+  /// [getDashboardTotals]: a GROUP BY in Postgres instead of averaging
+  /// every row's confidence_score client-side.
+  Future<Map<String, double>> getSpeciesAvgConfidence() async {
+    final rows = await _client.rpc('species_avg_confidence') as List;
+    return {
+      for (final r in rows.cast<Map<String, dynamic>>())
+        r['species_id'] as String: (r['avg_confidence'] as num).toDouble(),
+    };
+  }
+
+  /// Raw scan timestamps for the dashboard's daily(14)/weekly(8)/monthly
+  /// (Jan..now) charts. Those only ever need the current year's data (extra
+  /// rows from before are simply filtered out by year), so 400 days is a
+  /// safe cutoff that always covers Jan 1 of the current year plus the
+  /// daily/weekly windows even in early January — bounded instead of
+  /// fetching identification_logs' entire history.
+  Future<List<DateTime>> getScanTimestampsSinceYearStart() async {
+    final cutoff = DateTime.now().subtract(const Duration(days: 400)).toIso8601String();
     final rows = await _client
         .from('identification_logs')
-        .select('created_at, health_status, predicted_species_id, confidence_score');
-    return rows.cast<Map<String, dynamic>>();
+        .select('created_at')
+        .gte('created_at', cutoff);
+    return rows
+        .map((r) => DateTime.tryParse(r['created_at'] as String? ?? ''))
+        .whereType<DateTime>()
+        .toList();
   }
 }

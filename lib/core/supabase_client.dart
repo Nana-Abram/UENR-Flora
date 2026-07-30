@@ -10,11 +10,16 @@ class SupabaseConfig {
 
   static Future<void> initialize() async {
     await dotenv.load(fileName: '.env');
-    assert(
-      url.isNotEmpty && anonKey.isNotEmpty,
-      'SUPABASE_URL and SUPABASE_ANON_KEY must be set in .env. '
-      'See .env.example.',
-    );
+    // `assert` is stripped from release builds, so this has to be a real
+    // check — otherwise a missing/misconfigured .env would silently call
+    // Supabase.initialize(url: '', anonKey: '') in production instead of
+    // failing with a clear message.
+    if (url.isEmpty || anonKey.isEmpty) {
+      throw StateError(
+        'SUPABASE_URL and SUPABASE_ANON_KEY must be set in .env. '
+        'See .env.example.',
+      );
+    }
     await Supabase.initialize(url: url, anonKey: anonKey);
   }
 }

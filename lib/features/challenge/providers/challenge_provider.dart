@@ -27,6 +27,15 @@ class ChallengeProvider extends ChangeNotifier {
   int timeElapsed = 0;
   Timer? _ticker;
 
+  // The Challenge screen can be navigated away from (disposing this
+  // provider) while the 1s ticker or an in-flight service call is still
+  // pending — `_ticker?.cancel()` alone doesn't close that race, since a
+  // tick or an await can already be resolving in the same event-loop turn
+  // dispose() runs in. Every notifyListeners() call below is guarded on
+  // this flag so a late timer/future can never touch a disposed
+  // ChangeNotifier.
+  bool _disposed = false;
+
   Future<void> loadTodaysChallenge() async {
     isLoading = true;
     error = null;
@@ -48,7 +57,7 @@ class ChallengeProvider extends ChangeNotifier {
       error = "Couldn't load today's challenge. Please try again.";
     } finally {
       isLoading = false;
-      notifyListeners();
+      if (!_disposed) notifyListeners();
     }
   }
 
@@ -62,6 +71,7 @@ class ChallengeProvider extends ChangeNotifier {
     _ticker?.cancel();
     timeElapsed = 0;
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (_disposed) return;
       timeElapsed++;
       notifyListeners();
     });
@@ -89,11 +99,12 @@ class ChallengeProvider extends ChangeNotifier {
     } catch (_) {
       error = "Couldn't submit your answer. Please try again.";
     }
-    notifyListeners();
+    if (!_disposed) notifyListeners();
   }
 
   @override
   void dispose() {
+    _disposed = true;
     _ticker?.cancel();
     super.dispose();
   }

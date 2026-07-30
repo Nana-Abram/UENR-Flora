@@ -1,14 +1,15 @@
 // lib/features/learn/article_detail_screen.dart
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:provider/provider.dart';
 import '../../core/theme.dart';
-import '../../core/constants.dart';
 import '../../core/learn_provider.dart';
 import '../../models/learn_article_db.dart';
 import '../../services/learn_repository.dart';
+import '../../widgets/app_footer.dart';
 import '../../widgets/breadcrumb.dart';
+import '../../widgets/read_aloud_button.dart';
 import '../profile/providers/profile_provider.dart';
 
 class ArticleDetailScreen extends StatefulWidget {
@@ -51,7 +52,7 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Center(
+      return Center(
         child: CircularProgressIndicator(color: kDeep, strokeWidth: 3),
       );
     }
@@ -61,14 +62,14 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(_error!, style: const TextStyle(fontSize: 13, color: kMu)),
+            Text(_error!, style: TextStyle(fontSize: 13, color: kMu)),
             const SizedBox(height: 12),
             TextButton(
               onPressed: () {
                 setState(() { _loading = true; _error = null; });
                 _load();
               },
-              child: const Text('Retry', style: TextStyle(color: kGreen)),
+              child: Text('Retry', style: TextStyle(color: kGreen)),
             ),
           ],
         ),
@@ -86,21 +87,36 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
         SliverToBoxAdapter(
           child: Align(
             alignment: Alignment.topCenter,
+            // A single 760-wide reading column (breadcrumb row and body
+            // alike), centered as one block — previously only _ArticleBody
+            // itself was constrained to 760 while this outer wrapper used
+            // kMaxContentWidth (1400) with crossAxisAlignment.start, so on
+            // any desktop viewport near/above 1400 the whole column (and
+            // the narrower body inside it) hugged the left edge instead of
+            // centering, with a large empty gap on the right. Mobile never
+            // showed this since the viewport itself was already narrower
+            // than 760.
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: kMaxContentWidth),
+              constraints: const BoxConstraints(maxWidth: 760),
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(kSp24, kSp16, kSp24, kSp32),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Breadcrumb(current: 'Learn'),
-                    const SizedBox(height: 16),
-                    const _BackToLearnLink(),
-                    const SizedBox(height: 20),
-                    ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 760),
-                      child: _ArticleBody(article: article, categoryName: categoryName, categoryColor: categoryColor),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Breadcrumb(current: 'Learn'),
+                        ReadAloudButton(
+                          textBuilder: () =>
+                              '${article.title}. ${article.paragraphs.join(' ')}',
+                        ),
+                      ],
                     ),
+                    const SizedBox(height: 5),
+                    // const _BackToLearnLink(),
+                    const SizedBox(height: 20),
+                    _ArticleBody(article: article, categoryName: categoryName, categoryColor: categoryColor),
                   ],
                 ),
               ),
@@ -111,7 +127,11 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
           hasScrollBody: false,
           child: Column(
             mainAxisAlignment: MainAxisAlignment.end,
-            children: [_ArticleFooter()],
+            children: [
+              AppFooter(
+                message: 'UENR Flora Environmental Learning Hub · Group 4 Final Year Project',
+              ),
+            ],
           ),
         ),
       ],
@@ -122,26 +142,26 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
 // ─────────────────────────────────────────────────────────────
 // BACK LINK
 // ─────────────────────────────────────────────────────────────
-class _BackToLearnLink extends StatelessWidget {
-  const _BackToLearnLink();
+// class _BackToLearnLink extends StatelessWidget {
+//   const _BackToLearnLink();
 
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: () => context.go('/learn'),
-      child: const Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.arrow_back, size: 16, color: kGreen),
-          SizedBox(width: 6),
-          Text('Back to Learn',
-              style: TextStyle(
-                  fontSize: 13, fontWeight: FontWeight.w600, color: kGreen)),
-        ],
-      ),
-    );
-  }
-}
+//   @override
+//   Widget build(BuildContext context) {
+//     return InkWell(
+//       onTap: () => context.go('/learn'),
+//       child: Row(
+//         mainAxisSize: MainAxisSize.min,
+//         children: [
+//           Icon(Icons.arrow_back, size: 16, color: kGreen),
+//           SizedBox(width: 6),
+//           Text('Back to Learn',
+//               style: TextStyle(
+//                   fontSize: 13, fontWeight: FontWeight.w600, color: kGreen)),
+//         ],
+//       ),
+//     );
+//   }
+// }
 
 // ─────────────────────────────────────────────────────────────
 // ARTICLE BODY
@@ -168,10 +188,14 @@ class _ArticleBody extends StatelessWidget {
               fit: StackFit.expand,
               children: [
                 if (article.heroImageUrl != null)
-                  Image.network(
-                    article.heroImageUrl!,
+                  CachedNetworkImage(
+                    imageUrl: article.heroImageUrl!,
                     fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Container(color: categoryColor),
+                    // 16:9 hero, full content-column width.
+                    memCacheWidth: 900,
+                    memCacheHeight: 500,
+                    placeholder: (_, __) => Container(color: categoryColor),
+                    errorWidget: (_, __, ___) => Container(color: categoryColor),
                   )
                 else
                   Container(color: categoryColor),
@@ -195,7 +219,7 @@ class _ArticleBody extends StatelessWidget {
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(color: kLight, borderRadius: kBRPill),
                         child: Text(categoryName,
-                            style: const TextStyle(
+                            style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,
                                 color: kDeep)),
@@ -219,10 +243,10 @@ class _ArticleBody extends StatelessWidget {
         const SizedBox(height: 16),
         Row(
           children: [
-            const Icon(Icons.access_time, size: 14, color: kMu),
+            Icon(Icons.access_time, size: 14, color: kMu),
             const SizedBox(width: 6),
             Text('${article.readTimeMin} min read',
-                style: const TextStyle(fontSize: 13, color: kMu)),
+                style: TextStyle(fontSize: 13, color: kMu)),
           ],
         ),
         const SizedBox(height: 20),
@@ -251,27 +275,3 @@ Color _colorFromHex(String? hex) {
   return Color(int.parse('FF${hex.replaceFirst('#', '')}', radix: 16));
 }
 
-// ─────────────────────────────────────────────────────────────
-// FOOTER
-// ─────────────────────────────────────────────────────────────
-class _ArticleFooter extends StatelessWidget {
-  const _ArticleFooter();
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.white,
-      elevation: 4,
-      shadowColor: Colors.black26,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: kSp24, vertical: 20),
-        child: const Text(
-          'UENR Flora Environmental Learning Hub · Group 4 Final Year Project',
-          style: TextStyle(fontSize: 11, color: kMu),
-          textAlign: TextAlign.center,
-        ),
-      ),
-    );
-  }
-}

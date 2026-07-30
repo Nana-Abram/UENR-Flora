@@ -1,19 +1,21 @@
 // lib/features/profile/models/profile_model.dart
+import 'package:flutter/material.dart';
+import '../../../core/app_icons.dart';
 
 class LevelInfo {
   final int level;
   final String name;
-  final String emoji;
+  final IconData icon;
   final int threshold;
-  const LevelInfo(this.level, this.name, this.emoji, this.threshold);
+  const LevelInfo(this.level, this.name, this.icon, this.threshold);
 }
 
 const List<LevelInfo> kLevels = [
-  LevelInfo(1, 'Seedling', '🌱', 0),
-  LevelInfo(2, 'Sprout', '🌿', 200),
-  LevelInfo(3, 'Sapling', '🌳', 500),
-  LevelInfo(4, 'Tree', '🌲', 1000),
-  LevelInfo(5, 'Elder Tree', '🏛️', 2000),
+  LevelInfo(1, 'Seedling', kIconSpa, 0),
+  LevelInfo(2, 'Sprout', kIconGrass, 200),
+  LevelInfo(3, 'Sapling', kIconTree, 500),
+  LevelInfo(4, 'Tree', kIconForest, 1000),
+  LevelInfo(5, 'Elder Tree', kIconCrown, 2000),
 ];
 
 LevelInfo levelForPoints(int points) {
@@ -87,7 +89,10 @@ class UserProfile {
       totalCorrect: (json['total_correct'] as int?) ?? 0,
       totalChallenges: (json['total_challenges'] as int?) ?? 0,
       speciesFound: speciesRaw.map((s) => s.toString()).toList(),
-      articlesRead: articlesRaw.map((a) => a as int).toList(),
+      // jsonb arrays don't guarantee element type on the wire — a num
+      // (e.g. a double) here would throw with a hard `as int` cast, unlike
+      // speciesFound's `.toString()` above which tolerates any type.
+      articlesRead: articlesRaw.map((a) => (a as num).toInt()).toList(),
       createdAt: DateTime.parse(json['created_at'] as String),
       updatedAt: DateTime.parse(json['updated_at'] as String),
     );
