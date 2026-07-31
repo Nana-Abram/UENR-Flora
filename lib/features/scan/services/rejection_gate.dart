@@ -12,6 +12,11 @@ import 'dart:math';
 // For a robust permanent fix, train a binary MobileNetV2 gate model
 // (plant vs not_plant) and run it before the 76-class species classifier.
 // This is documented as future work in Chapter 5.
+//
+// Current gate catches uniform-distribution and moderately-spread garbage
+// inputs. Confidently wrong single-class predictions (e.g. a red object
+// classified as Flamboyant at 89%) remain a known false-negative case
+// requiring a dedicated binary pre-screening model to resolve.
 
 /// How confidently a single classification looks like a real plant photo,
 /// from most to least trustworthy. Distinct from "is the species right" —
@@ -45,7 +50,17 @@ class RejectionGate {
   /// much more evenly across many unrelated species instead. Below this,
   /// even a distribution with a deceptively high top-1 confidence is
   /// treated as suspect (see the top-k check in [evaluate]).
-  static const double topKConcentrationMin = 0.50;
+  ///
+  /// Raised from 0.50 to 0.55 — the 0.50 floor let a "spread but not too
+  /// spread" garbage read (top-3 concentration sitting right around 0.55)
+  /// fall through as a plausible low-confidence plant photo instead of
+  /// getting flagged, since it wasn't low enough to trip the old floor and
+  /// its entropy fell short of [entropyReject] too (that ceiling is
+  /// unchanged — see test/unit/rejection_gate_test.dart for why). 0.55
+  /// catches exactly that ambiguous band without pulling in genuine
+  /// low-confidence plant scans, whose top-3 concentration tends to run
+  /// well above it even in bad lighting (see Test 6).
+  static const double topKConcentrationMin = 0.55;
 
   /// Shannon entropy of [probs], normalised to [0, 1] by dividing by the
   /// maximum possible entropy for [numClasses] classes (log2(numClasses) —

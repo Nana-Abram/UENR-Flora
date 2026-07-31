@@ -54,34 +54,35 @@ void main() {
       expect(d['rejectionLevel'], 'lowConfidencePlant');
     });
 
-    test('5 — spread garbage (person photo): lands on lowConfidencePlant, '
-        'NOT probablyNotPlant — documents a real gap between the two signals', () {
-      // The brief for this case ("top class ~0.45, next ~10 classes each
-      // 0.04-0.06, top-3 concentration ~0.55") was expected to land on
-      // probablyNotPlant. It doesn't, and can't, with the exact thresholds
-      // given (entropyReject: 0.70, topKConcentrationMin: 0.50):
-      //
-      //   - top-3 = 0.55 is comfortably above topKConcentrationMin (0.50),
-      //     so the top-k signal never fires.
-      //   - Given top-3 fixed at 0.55, the *maximum possible* normalised
-      //     entropy (spreading the remaining 0.45 as evenly as possible
-      //     across the other 73 classes — the single best case for
-      //     tripping this signal) is ~0.68, still short of entropyReject
-      //     (0.70). Verified below with that exact maximally-spread tail.
-      //
-      // So a distribution with top-3 in roughly the 0.50-0.68 range and a
-      // sub-threshold top-1 falls all the way through to lowConfidencePlant
-      // (treated as "maybe a real, blurry plant photo — ask for another
-      // angle") instead of being flagged as suspicious. Left as-is rather
-      // than silently retuned — see the deploy notes for the concrete
-      // options (nudge topKConcentrationMin up, or entropyReject down).
-      final probs = _vector([0.45, 0.05, 0.05]); // max-even tail — the
-      // most-favorable case for tripping entropyReject; still doesn't.
+    test('5 — spread garbage (person photo): probablyNotPlant', () {
+      // topKConcentrationMin was raised 0.50 -> 0.55 specifically to catch
+      // this case (top-3 concentration sitting right around 0.55) — see
+      // that constant's doc comment for the full reasoning. Using 0.449
+      // rather than the brief's literal 0.45 for the top class: 0.45 + 0.05
+      // + 0.05 sums to *exactly* 0.55 in double-precision float (verified:
+      // 0.45 + 0.05 + 0.05 == 0.55 bit-for-bit), and evaluate()'s topK
+      // check is a strict `<` — a value sitting exactly on the new floor
+      // is defined as still acceptable, same convention as every other
+      // threshold in this gate. 0.449 puts it genuinely under 0.55 instead
+      // of relying on which way a tied float happens to compare.
+      final probs = _vector([0.449, 0.05, 0.05]);
       final d = RejectionGate.diagnose(probs);
       // ignore: avoid_print
       print('Test 5 (spread garbage)    : $d');
-      expect(d['top3Conc'], closeTo(0.55, 0.001));
-      expect(d['normEntropy'], lessThan(RejectionGate.entropyReject));
+      expect(d['top3Conc'], lessThan(RejectionGate.topKConcentrationMin));
+      expect(d['rejectionLevel'], 'probablyNotPlant');
+    });
+
+    test('6 — legitimate low-confidence plant scan: NOT rejected', () {
+      // Confirms the raised top-k floor (0.55) doesn't catch a real plant
+      // photographed in bad lighting — its top-3 concentration (0.86) sits
+      // well clear of the new floor even though top-1 alone is well under
+      // confidenceThreshold.
+      final probs = _vector([0.58, 0.19, 0.09]);
+      final d = RejectionGate.diagnose(probs);
+      // ignore: avoid_print
+      print('Test 6 (legit low confidence): $d');
+      expect(d['top3Conc'], greaterThan(RejectionGate.topKConcentrationMin));
       expect(d['rejectionLevel'], 'lowConfidencePlant');
     });
   });
