@@ -90,4 +90,60 @@ class PlantSpecies {
           .toList(),
     );
   }
+
+  /// Flat (non-nested) JSON used by [PersistentCache] — deliberately not
+  /// the same shape as the Supabase row [fromMap] expects (that shape has
+  /// `plant_families`/`species_images` nested join objects that only exist
+  /// mid-query, not once flattened into this class's fields).
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'scientific_name': scientificName,
+        'common_name': commonName,
+        'local_name_twi': localNameTwi,
+        'family_name': familyName,
+        'growth_habit': growthHabit,
+        'growth_type': growthType,
+        'height_range': heightRange,
+        'leaf_type': leafType,
+        'flowering_season': floweringSeason,
+        'origin': origin,
+        'ecological_importance': ecologicalImportance,
+        'environmental_benefits': environmentalBenefits,
+        'medicinal_uses': medicinalUses,
+        'economic_importance': economicImportance,
+        'water_requirements': waterRequirements,
+        'sunlight_requirements': sunlightRequirements,
+        'soil_preference': soilPreference,
+        'reference_image_url': referenceImageUrl,
+        'model_class_index': modelClassIndex,
+        'did_you_know_facts': didYouKnowFacts,
+        'gallery_image_urls': galleryImageUrls,
+      };
+
+  factory PlantSpecies.fromJson(Map<String, dynamic> map) => PlantSpecies(
+        id: map['id'] as String,
+        scientificName: map['scientific_name'] as String,
+        commonName: map['common_name'] as String,
+        localNameTwi: map['local_name_twi'] as String?,
+        familyName: map['family_name'] as String?,
+        growthHabit: map['growth_habit'] as String?,
+        growthType: map['growth_type'] as String?,
+        heightRange: map['height_range'] as String?,
+        leafType: map['leaf_type'] as String?,
+        floweringSeason: map['flowering_season'] as String?,
+        origin: map['origin'] as String?,
+        ecologicalImportance: map['ecological_importance'] as String?,
+        environmentalBenefits: map['environmental_benefits'] as String?,
+        medicinalUses: map['medicinal_uses'] as String?,
+        economicImportance: map['economic_importance'] as String?,
+        waterRequirements: map['water_requirements'] as String?,
+        sunlightRequirements: map['sunlight_requirements'] as String?,
+        soilPreference: map['soil_preference'] as String?,
+        referenceImageUrl: map['reference_image_url'] as String?,
+        modelClassIndex: map['model_class_index'] as int,
+        didYouKnowFacts:
+            (map['did_you_know_facts'] as List<dynamic>?)?.cast<String>() ?? const [],
+        galleryImageUrls:
+            (map['gallery_image_urls'] as List<dynamic>?)?.cast<String>() ?? const [],
+      );
 }

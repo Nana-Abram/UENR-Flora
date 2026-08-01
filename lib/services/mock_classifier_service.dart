@@ -13,6 +13,9 @@ class MockClassifierService implements ClassifierService {
   final _rng = Random();
 
   @override
+  Future<void> get ready => Future.value();
+
+  @override
   Future<ClassificationOutput> classify(List<Uint8List> images) async {
     await Future.delayed(const Duration(milliseconds: 1800));
     // Each extra photo nudges confidence up, mirroring the real ensemble's

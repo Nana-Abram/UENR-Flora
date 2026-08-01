@@ -12,5 +12,11 @@ import '../models/identification_result.dart';
 /// probability distributions) rather than just using the first, since this
 /// is what lets a second/third angle raise a low-confidence result.
 abstract class ClassifierService {
+  /// Resolves once the model is loaded and ready to classify. `classify()`
+  /// still works before this resolves (it awaits the load itself), but
+  /// callers that want to show a "preparing model" state on a button etc.
+  /// can await/watch this instead.
+  Future<void> get ready;
+
   Future<ClassificationOutput> classify(List<Uint8List> images);
 }

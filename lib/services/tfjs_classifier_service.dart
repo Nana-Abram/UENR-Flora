@@ -20,14 +20,23 @@ external JSPromise<JSAny?> _preload();
 /// sigmoid (0 = healthy, 1 = unhealthy). See
 /// D:\Final Year Project\Training\training_guide.py for how it was trained.
 class TfjsClassifierService implements ClassifierService {
+  final Completer<void> _ready = Completer<void>();
+
+  @override
+  Future<void> get ready => _ready.future;
+
   TfjsClassifierService() {
     // Starts the (multi-second, one-time) model download/compile the
     // moment this service is constructed — main.dart marks its provider
     // `lazy: false` so that's at app boot, well before the user reaches
     // the Scan screen. Errors are ignored here; a real classify() call
     // later will retry the fetch itself (see classifier.js's getModel)
-    // and surface any genuine problem through the normal error path.
-    unawaited(_preload().toDart.catchError((_) => null));
+    // and surface any genuine problem through the normal error path —
+    // `ready` completes regardless, since a failed preload doesn't
+    // permanently block that later retry.
+    unawaited(_preload().toDart.catchError((_) => null).whenComplete(() {
+      if (!_ready.isCompleted) _ready.complete();
+    }));
   }
 
   @override

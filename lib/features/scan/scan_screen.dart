@@ -620,22 +620,41 @@ class _PreviewView extends StatelessWidget {
                 style: TextStyle(fontSize: 12, color: kMu, height: 1.6),
               ),
               const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: () => _runIdentification(context),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: kGreen,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 13),
-                    shape: RoundedRectangleBorder(borderRadius: kBRSm),
-                    elevation: 0,
-                  ),
-                  icon: const Icon(Icons.search_outlined, size: 16),
-                  label: const Text('Identify plant',
-                      style:
-                          TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
-                ),
+              // The TFjs model starts loading at app boot (see
+              // TfjsClassifierService), so this is normally already resolved
+              // by the time a user reaches this screen — this FutureBuilder
+              // only shows anything on a slow connection's first visit.
+              FutureBuilder<void>(
+                future: context.read<ClassifierService>().ready,
+                builder: (context, snapshot) {
+                  final modelReady = snapshot.connectionState == ConnectionState.done;
+                  return SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: modelReady ? () => _runIdentification(context) : null,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: kGreen,
+                        foregroundColor: Colors.white,
+                        disabledBackgroundColor: kGreen.withValues(alpha: 0.6),
+                        disabledForegroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 13),
+                        shape: RoundedRectangleBorder(borderRadius: kBRSm),
+                        elevation: 0,
+                      ),
+                      icon: modelReady
+                          ? const Icon(Icons.search_outlined, size: 16)
+                          : const SizedBox(
+                              width: 14,
+                              height: 14,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2, color: Colors.white),
+                            ),
+                      label: Text(modelReady ? 'Identify plant' : 'Preparing model...',
+                          style: const TextStyle(
+                              fontSize: 14, fontWeight: FontWeight.w500)),
+                    ),
+                  );
+                },
               ),
               const SizedBox(height: 10),
               SizedBox(

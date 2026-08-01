@@ -1,6 +1,8 @@
 // lib/core/species_provider.dart
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../models/plant_species.dart';
+import '../services/persistent_cache.dart';
 import '../services/species_repository.dart';
 
 /// Single source of truth for live Supabase plant-species data, shared by
@@ -11,9 +13,34 @@ import '../services/species_repository.dart';
 /// merged into this one — this is the species content catalog
 /// (`plant_species`), that's scan-usage analytics (`identification_logs`).
 class SpeciesProvider extends ChangeNotifier {
+  static const _cacheKey = 'species_cache_v1';
+
   final SpeciesRepository _repository;
+  final PersistentCache _cache = PersistentCache();
+
   SpeciesProvider(this._repository) {
-    _load();
+    _init();
+  }
+
+  /// Shows whatever's on disk instantly (if present and not expired), then
+  /// always follows up with a real network load — the disk copy is a
+  /// display shortcut, never a substitute for a real refresh, so species
+  /// added/edited in Supabase since the cache was written still show up.
+  Future<void> _init() async {
+    final cached = await _cache.read(_cacheKey);
+    if (cached != null && cached.isNotEmpty) {
+      try {
+        all = cached.map(PlantSpecies.fromJson).toList();
+        _allFacts = all.expand((s) => s.didYouKnowFacts).toList();
+        loading = false;
+        notifyListeners();
+      } catch (_) {
+        // Incompatible cached shape (e.g. a field was renamed) — ignore and
+        // fall through to the real load below.
+        all = [];
+      }
+    }
+    await _load();
   }
 
   List<PlantSpecies> all = [];
@@ -39,8 +66,14 @@ class SpeciesProvider extends ChangeNotifier {
   Future<void> reload() => _load();
 
   Future<void> _load() async {
-    loading = true;
-    notifyListeners();
+    // Nothing on screen yet (no cache hit) — show the full loading state.
+    // Otherwise this is a silent background refresh behind already-visible
+    // cached data, so don't blank the screen with a spinner for it.
+    final hadData = all.isNotEmpty;
+    if (!hadData) {
+      loading = true;
+      notifyListeners();
+    }
     try {
       final results = await Future.wait([
         _repository.getAll(),
@@ -50,8 +83,13 @@ class SpeciesProvider extends ChangeNotifier {
       recent = results[1];
       _allFacts = all.expand((s) => s.didYouKnowFacts).toList();
       error = null;
+      unawaited(_cache.write(_cacheKey, all.map((s) => s.toJson()).toList()));
     } catch (_) {
-      error = 'Could not load plant species. Please try again.';
+      // A failed background refresh just leaves the cached copy on screen —
+      // only surface the error banner when there was nothing to fall back on.
+      if (!hadData) {
+        error = 'Could not load plant species. Please try again.';
+      }
     } finally {
       loading = false;
       notifyListeners();

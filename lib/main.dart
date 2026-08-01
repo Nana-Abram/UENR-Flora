@@ -9,6 +9,7 @@ import 'services/classifier_service.dart';
 import 'services/tfjs_classifier_service.dart';
 import 'services/species_repository.dart';
 import 'services/identification_logger.dart';
+import 'services/supabase_keep_alive.dart';
 import 'core/species_provider.dart';
 import 'core/dashboard_provider.dart';
 import 'core/favorites_provider.dart';
@@ -42,6 +43,8 @@ void main() {
       runApp(_BootstrapErrorApp(error: error));
       return;
     }
+
+    SupabaseKeepAlive(supabase).start();
 
     runApp(_buildApp());
   }, (error, stackTrace) {
