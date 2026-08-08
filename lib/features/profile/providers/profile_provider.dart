@@ -164,25 +164,43 @@ class ProfileProvider extends ChangeNotifier {
     }
   }
 
+  /// Applies the new name to [profile] immediately (before the network
+  /// round-trip resolves) and rolls back on failure — without this, the
+  /// name/level header briefly (or, on a slow/failed request, seemingly
+  /// permanently) re-renders with the pre-edit `profile.displayName` for
+  /// as long as the request is in flight, since the editor widget flips
+  /// out of edit mode as soon as this is called rather than once it
+  /// resolves.
   Future<void> editName(String name) async {
     final id = deviceId;
-    if (id == null || name.trim().isEmpty) return;
+    final trimmed = name.trim();
+    final previous = profile;
+    if (id == null || trimmed.isEmpty || previous == null) return;
+    profile = previous.copyWith(displayName: trimmed);
+    notifyListeners();
     try {
-      profile = await _service.updateProfile(id, name: name.trim());
+      profile = await _service.updateProfile(id, name: trimmed);
       error = null;
     } catch (_) {
+      profile = previous;
       error = "Couldn't update your name. Please try again.";
     }
     notifyListeners();
   }
 
+  /// See [editName] for why this updates [profile] optimistically instead
+  /// of waiting for the request to resolve.
   Future<void> editAvatar(String emoji) async {
     final id = deviceId;
-    if (id == null) return;
+    final previous = profile;
+    if (id == null || previous == null) return;
+    profile = previous.copyWith(avatarEmoji: emoji);
+    notifyListeners();
     try {
       profile = await _service.updateProfile(id, emoji: emoji);
       error = null;
     } catch (_) {
+      profile = previous;
       error = "Couldn't update your avatar. Please try again.";
     }
     notifyListeners();

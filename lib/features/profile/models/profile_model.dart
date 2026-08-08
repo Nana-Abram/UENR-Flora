@@ -71,6 +71,24 @@ class UserProfile {
   LevelInfo get levelInfo => levelForPoints(totalPoints);
   LevelInfo? get nextLevelInfo => nextLevelAfter(levelInfo.level);
 
+  UserProfile copyWith({String? displayName, String? avatarEmoji}) => UserProfile(
+        deviceId: deviceId,
+        displayName: displayName ?? this.displayName,
+        avatarEmoji: avatarEmoji ?? this.avatarEmoji,
+        totalPoints: totalPoints,
+        level: level,
+        streakDays: streakDays,
+        longestStreak: longestStreak,
+        lastActiveDate: lastActiveDate,
+        totalScans: totalScans,
+        totalCorrect: totalCorrect,
+        totalChallenges: totalChallenges,
+        speciesFound: speciesFound,
+        articlesRead: articlesRead,
+        createdAt: createdAt,
+        updatedAt: updatedAt,
+      );
+
   factory UserProfile.fromJson(Map<String, dynamic> json) {
     final speciesRaw = json['species_found'] as List<dynamic>? ?? const [];
     final articlesRaw = json['articles_read'] as List<dynamic>? ?? const [];
