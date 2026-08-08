@@ -18,5 +18,13 @@ abstract class ClassifierService {
   /// can await/watch this instead.
   Future<void> get ready;
 
+  /// Starts the (multi-second, one-time) model download/compile. Safe to
+  /// call multiple times — implementations should only actually start the
+  /// work once. `classify()` doesn't need this to have been called (it
+  /// loads the model itself on first use if warmUp() never ran); this just
+  /// lets a caller front-load that cost at a moment of its choosing instead
+  /// of paying it on the user's first scan.
+  Future<void> warmUp();
+
   Future<ClassificationOutput> classify(List<Uint8List> images);
 }

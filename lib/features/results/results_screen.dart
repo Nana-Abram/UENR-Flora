@@ -724,7 +724,7 @@ class _TabOverview extends StatelessWidget {
                 Row(children: [
                   Icon(Icons.warning_amber_rounded,
                       size: 15, color: kUnhealthyTx),
-                  SizedBox(width: 7),
+                  const SizedBox(width: 7),
                   Text('Health notice',
                       style: TextStyle(
                           fontSize: 13, fontWeight: FontWeight.w500,
@@ -827,7 +827,7 @@ class _TabFacts extends StatelessWidget {
     final facts = species.didYouKnowFacts;
     if (facts.isEmpty) {
       return Padding(
-        padding: EdgeInsets.only(bottom: 20),
+        padding: const EdgeInsets.only(bottom: 20),
         child: Text('No facts available yet.',
             style: TextStyle(fontSize: 13, color: kMu)),
       );
@@ -881,7 +881,7 @@ class _SimilarSpecies extends StatelessWidget {
         Row(
           children: [
             Icon(Icons.eco_outlined, size: 16, color: kDeep),
-            SizedBox(width: 7),
+            const SizedBox(width: 7),
             Text('Similar species',
                 style: TextStyle(
                     fontSize: 16, fontWeight: FontWeight.w500, color: kTx)),

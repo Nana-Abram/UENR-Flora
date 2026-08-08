@@ -124,7 +124,13 @@ String _formatShortDate(DateTime d) {
 }
 
 class ProfileScreen extends StatelessWidget {
-  const ProfileScreen({super.key});
+  /// Raw `?tab=` query value from the route (see app.dart) — e.g. 'saved'
+  /// to land directly on the Saved Plants tab instead of the Overview tab
+  /// it defaults to. Anything else/null falls back to Overview, same as
+  /// visiting /profile with no query param always has.
+  final String? initialTab;
+
+  const ProfileScreen({super.key, this.initialTab});
 
   @override
   Widget build(BuildContext context) {
@@ -141,26 +147,26 @@ class ProfileScreen extends StatelessWidget {
               alignment: Alignment.topCenter,
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: kMaxContentWidth),
-                child: const Padding(
-                  padding: EdgeInsets.fromLTRB(kSp24, kSp16, kSp24, kSp36),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(kSp24, kSp16, kSp24, kSp36),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Breadcrumb(current: 'Profile'),
-                      SizedBox(height: 16),
-                      _HeroHeader(),
-                      SizedBox(height: kSp20),
-                      _StatsGrid(),
-                      SizedBox(height: kSp20),
-                      _ProfileMainArea(),
-                      SizedBox(height: kSp20),
-                      _ProfileTabsSection(),
-                      SizedBox(height: kSp20),
-                      _AppearanceSection(),
-                      SizedBox(height: kSp20),
-                      _LeaderboardLinkCard(),
-                      SizedBox(height: kSp24),
-                      _DangerZone(),
+                      const Breadcrumb(current: 'Profile'),
+                      const SizedBox(height: 16),
+                      const _HeroHeader(),
+                      const SizedBox(height: kSp20),
+                      const _StatsGrid(),
+                      const SizedBox(height: kSp20),
+                      const _ProfileMainArea(),
+                      const SizedBox(height: kSp20),
+                      _ProfileTabsSection(initialTab: initialTab),
+                      const SizedBox(height: kSp20),
+                      const _AppearanceSection(),
+                      const SizedBox(height: kSp20),
+                      const _LeaderboardLinkCard(),
+                      const SizedBox(height: kSp24),
+                      const _DangerZone(),
                     ],
                   ),
                 ),
@@ -1008,7 +1014,7 @@ class _RecentActivityCard extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text('View all', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: kGreen)),
-                    SizedBox(width: 2),
+                    const SizedBox(width: 2),
                     Icon(kIconChevronR, size: 14, color: kGreen),
                   ],
                 ),
@@ -1018,12 +1024,12 @@ class _RecentActivityCard extends StatelessWidget {
           const SizedBox(height: kSp8),
           if (provider.scansLoading)
             Padding(
-              padding: EdgeInsets.symmetric(vertical: 24),
+              padding: const EdgeInsets.symmetric(vertical: 24),
               child: Center(child: CircularProgressIndicator(color: kDeep, strokeWidth: 2)),
             )
           else if (scans.isEmpty)
             Padding(
-              padding: EdgeInsets.symmetric(vertical: 12),
+              padding: const EdgeInsets.symmetric(vertical: 12),
               child: Text('No scans yet — identify a plant to see your activity here.',
                   style: TextStyle(fontSize: 12, color: kMu)),
             )
@@ -1064,14 +1070,17 @@ class _RecentActivityCard extends StatelessWidget {
 enum _ProfileTab { overview, saved, history }
 
 class _ProfileTabsSection extends StatefulWidget {
-  const _ProfileTabsSection();
+  final String? initialTab;
+
+  const _ProfileTabsSection({this.initialTab});
 
   @override
   State<_ProfileTabsSection> createState() => _ProfileTabsSectionState();
 }
 
 class _ProfileTabsSectionState extends State<_ProfileTabsSection> {
-  var _tab = _ProfileTab.overview;
+  late var _tab =
+      widget.initialTab == 'saved' ? _ProfileTab.saved : _ProfileTab.overview;
 
   @override
   Widget build(BuildContext context) {
@@ -1280,12 +1289,12 @@ class _MyScanActivityCard extends StatelessWidget {
           const SizedBox(height: kSp20),
           if (provider.scansLoading)
             Padding(
-              padding: EdgeInsets.symmetric(vertical: 60),
+              padding: const EdgeInsets.symmetric(vertical: 60),
               child: Center(child: CircularProgressIndicator(color: kDeep, strokeWidth: 2)),
             )
           else if (provider.scans.isEmpty)
             Padding(
-              padding: EdgeInsets.symmetric(vertical: 30),
+              padding: const EdgeInsets.symmetric(vertical: 30),
               child: Center(
                 child: Text('No scan activity yet — identify a plant to see your trend.',
                     style: TextStyle(fontSize: 12, color: kMu)),
@@ -1315,7 +1324,7 @@ class _SavedPlantsTab extends StatelessWidget {
 
     if (!favorites.loaded) {
       return Padding(
-        padding: EdgeInsets.symmetric(vertical: 40),
+        padding: const EdgeInsets.symmetric(vertical: 40),
         child: Center(child: CircularProgressIndicator(color: kDeep, strokeWidth: 2)),
       );
     }
@@ -1332,10 +1341,10 @@ class _SavedPlantsTab extends StatelessWidget {
         child: Column(
           children: [
             Icon(Icons.favorite_border, size: 32, color: kMu),
-            SizedBox(height: 10),
+            const SizedBox(height: 10),
             Text('No saved plants yet',
                 style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: kTx)),
-            SizedBox(height: 4),
+            const SizedBox(height: 4),
             Text('Tap the heart icon on any plant to save it here.',
                 style: TextStyle(fontSize: 12, color: kMu)),
           ],
@@ -1481,7 +1490,7 @@ class _ScanHistoryTab extends StatelessWidget {
 
     if (provider.scansLoading) {
       return Padding(
-        padding: EdgeInsets.symmetric(vertical: 40),
+        padding: const EdgeInsets.symmetric(vertical: 40),
         child: Center(child: CircularProgressIndicator(color: kDeep, strokeWidth: 2)),
       );
     }

@@ -26,6 +26,20 @@ class PlantSpecies {
   final List<String> didYouKnowFacts;
   final List<String> galleryImageUrls;
 
+  // ── Morphology fields (added for the background Claude "second opinion"
+  // prompt — see BackgroundIdentifierService/SpeciesMetadata) ────────────
+  // Not shown anywhere in the app's own UI today; exist purely to give
+  // Claude richer text to compare a photo against, beyond leafType/
+  // familyName/growthHabit alone.
+  final String? leafArrangement;
+  final String? leafMargin;
+  final String? venation;
+  final String? leafShape;
+  final String? leafTexture;
+  final String? flowerDescription;
+  final String? fruitDescription;
+  final String? barkDescription;
+
   const PlantSpecies({
     required this.id,
     required this.scientificName,
@@ -49,6 +63,14 @@ class PlantSpecies {
     this.referenceImageUrl,
     this.didYouKnowFacts = const [],
     this.galleryImageUrls = const [],
+    this.leafArrangement,
+    this.leafMargin,
+    this.venation,
+    this.leafShape,
+    this.leafTexture,
+    this.flowerDescription,
+    this.fruitDescription,
+    this.barkDescription,
   });
 
   factory PlantSpecies.fromMap(Map<String, dynamic> map) {
@@ -81,6 +103,14 @@ class PlantSpecies {
       soilPreference:        map['soil_preference'] as String?,
       referenceImageUrl:     map['reference_image_url'] as String?,
       modelClassIndex:       requireField<int>(map, 'model_class_index', table: table),
+      leafArrangement:       map['leaf_arrangement'] as String?,
+      leafMargin:            map['leaf_margin'] as String?,
+      venation:              map['venation'] as String?,
+      leafShape:             map['leaf_shape'] as String?,
+      leafTexture:           map['leaf_texture'] as String?,
+      flowerDescription:     map['flower_description'] as String?,
+      fruitDescription:      map['fruit_description'] as String?,
+      barkDescription:       map['bark_description'] as String?,
       didYouKnowFacts: factsRaw
           .map((f) => requireField<String>(f as Map<String, dynamic>, 'fact_text',
               table: 'plant_facts'))
@@ -118,6 +148,14 @@ class PlantSpecies {
         'model_class_index': modelClassIndex,
         'did_you_know_facts': didYouKnowFacts,
         'gallery_image_urls': galleryImageUrls,
+        'leaf_arrangement': leafArrangement,
+        'leaf_margin': leafMargin,
+        'venation': venation,
+        'leaf_shape': leafShape,
+        'leaf_texture': leafTexture,
+        'flower_description': flowerDescription,
+        'fruit_description': fruitDescription,
+        'bark_description': barkDescription,
       };
 
   factory PlantSpecies.fromJson(Map<String, dynamic> map) => PlantSpecies(
@@ -145,5 +183,13 @@ class PlantSpecies {
             (map['did_you_know_facts'] as List<dynamic>?)?.cast<String>() ?? const [],
         galleryImageUrls:
             (map['gallery_image_urls'] as List<dynamic>?)?.cast<String>() ?? const [],
+        leafArrangement: map['leaf_arrangement'] as String?,
+        leafMargin: map['leaf_margin'] as String?,
+        venation: map['venation'] as String?,
+        leafShape: map['leaf_shape'] as String?,
+        leafTexture: map['leaf_texture'] as String?,
+        flowerDescription: map['flower_description'] as String?,
+        fruitDescription: map['fruit_description'] as String?,
+        barkDescription: map['bark_description'] as String?,
       );
 }

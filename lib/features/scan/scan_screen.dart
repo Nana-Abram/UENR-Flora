@@ -11,18 +11,26 @@ import '../../core/dashboard_provider.dart';
 import '../../core/device_id.dart';
 import '../../core/species_provider.dart';
 import '../../models/identification_result.dart';
+import '../../models/plant_species.dart';
 import '../../services/classifier_service.dart';
 import '../../services/species_repository.dart';
 import '../../services/identification_logger.dart';
 import '../../widgets/app_footer.dart';
 import '../../widgets/breadcrumb.dart';
 import '../profile/providers/profile_provider.dart';
+import '../results/unknown_plant_screen.dart';
 import 'offline_scan_queue.dart';
 import 'pending_scan.dart';
 import 'scan_provider.dart';
+import 'services/background_identifier_service.dart';
+import 'services/gate_classifier_service.dart';
+import 'services/image_quality_checker.dart';
+import 'services/ood_detector.dart';
 import 'services/rejection_gate.dart';
+import 'services/scan_diagnostics.dart';
 
 final _rejectionGate = RejectionGate();
+final _qualityChecker = ImageQualityChecker();
 
 class ScanScreen extends StatelessWidget {
   const ScanScreen({super.key});
@@ -66,29 +74,7 @@ class _ScanBody extends StatelessWidget {
                         "Identify any plant instantly using our AI model trained on UENR's botanical database.",
                         style: TextStyle(fontSize: 14, color: kMu)),
                     const SizedBox(height: 24),
-                    Consumer<ScanProvider>(
-                      builder: (context, provider, _) {
-                        final Widget child = switch (provider.state) {
-                          ScanState.idle =>
-                            _IdleView(errorMessage: provider.errorMessage),
-                          ScanState.preview =>
-                            _PreviewView(bytes: provider.primaryImage!),
-                          ScanState.analyzing =>
-                            _AnalyzingView(bytes: provider.latestImage!),
-                          ScanState.needsMoreImages =>
-                            const _NeedsMoreImagesView(),
-                          ScanState.rejected =>
-                            _RejectedView(level: provider.lastRejectionLevel!),
-                        };
-                        return AnimatedSwitcher(
-                          duration: const Duration(milliseconds: 250),
-                          child: KeyedSubtree(
-                            key: ValueKey(provider.state),
-                            child: child,
-                          ),
-                        );
-                      },
-                    ),
+                    const _ScannerReadinessGate(),
                   ],
                 ),
               ),
@@ -107,6 +93,116 @@ class _ScanBody extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// STARTUP GATE — both models must be loaded before scanning is allowed
+// ─────────────────────────────────────────────────────────────
+
+/// Blocks the whole capture/scan UI behind a single "Preparing scanner..."
+/// state until both the species classifier and the gate model are ready —
+/// they load in parallel (see main.dart, which kicks off the gate model's
+/// load immediately on construction, same as TfjsClassifierService's own
+/// constructor-triggered preload). A StatefulWidget (not a plain
+/// FutureBuilder in _ScanBody's build) so the combined future is created
+/// once via the `late final` field below, not re-created — and therefore
+/// re-awaited from scratch — on every rebuild.
+class _ScannerReadinessGate extends StatefulWidget {
+  const _ScannerReadinessGate();
+
+  @override
+  State<_ScannerReadinessGate> createState() => _ScannerReadinessGateState();
+}
+
+class _ScannerReadinessGateState extends State<_ScannerReadinessGate> {
+  late final Future<void> _modelsReady = Future.wait([
+    context.read<ClassifierService>().ready,
+    context.read<GateClassifierService>().ready,
+    context.read<OodDetector>().ready,
+  ]);
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<void>(
+      future: _modelsReady,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const _PreparingScannerView();
+        }
+        return Consumer<ScanProvider>(
+          builder: (context, provider, _) {
+            final Widget child = switch (provider.state) {
+              ScanState.idle =>
+                _IdleView(errorMessage: provider.errorMessage),
+              ScanState.preview =>
+                _PreviewView(bytes: provider.primaryImage!),
+              ScanState.analyzing =>
+                _AnalyzingView(bytes: provider.latestImage!),
+              ScanState.needsMoreImages => const _NeedsMoreImagesView(),
+              ScanState.rejected =>
+                _RejectedView(level: provider.lastRejectionLevel!),
+              ScanState.qualityRejected =>
+                _QualityRejectedView(quality: provider.lastQualityIssue!),
+              ScanState.gateRejected =>
+                _GateRejectedView(result: provider.lastGateResult!),
+            };
+            return AnimatedSwitcher(
+              duration: const Duration(milliseconds: 200),
+              // Default AnimatedSwitcher layout stacks the outgoing and
+              // incoming views on top of each other for the whole
+              // crossfade — fine for two similarly-shaped widgets, but
+              // these states swing from a two-column preview layout to a
+              // centered analysing card (very different sizes/positions),
+              // so the stock crossfade showed both screens ghosted on top
+              // of one another for the transition's duration. Dropping
+              // previousChildren here means only the incoming view ever
+              // renders, so it simply fades in over the current background
+              // instead of visibly overlapping the old screen.
+              layoutBuilder: (currentChild, previousChildren) =>
+                  currentChild ?? const SizedBox.shrink(),
+              child: KeyedSubtree(
+                key: ValueKey(provider.state),
+                child: child,
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+class _PreparingScannerView extends StatelessWidget {
+  const _PreparingScannerView();
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 400,
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircularProgressIndicator(
+              color: kDeep,
+              backgroundColor: kLight,
+              strokeWidth: 3,
+            ),
+            const SizedBox(height: 18),
+            Text('Preparing scanner...',
+                style: TextStyle(
+                    fontSize: 15, fontWeight: FontWeight.w500, color: kTx)),
+            const SizedBox(height: 6),
+            Text(
+              'Loading the on-device AI models — this only happens once.',
+              style: TextStyle(fontSize: 13, color: kMu),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -169,7 +265,7 @@ class _IdleView extends StatelessWidget {
                 children: [
                   Expanded(child: left),
                   const SizedBox(width: 20),
-                  Expanded(child: right),
+                  const Expanded(child: right),
                 ],
               ),
             );
@@ -302,7 +398,7 @@ class _TipsCard extends StatelessWidget {
           Row(
             children: [
               Icon(Icons.camera_alt_outlined, size: 15, color: kTx),
-              SizedBox(width: 8),
+              const SizedBox(width: 8),
               Text('Tips for Best Results',
                   style: TextStyle(
                       fontSize: 13, fontWeight: FontWeight.w600, color: kTx)),
@@ -433,6 +529,19 @@ class _StatTile extends StatelessWidget {
 // STATE 2 — PREVIEW
 // ─────────────────────────────────────────────────────────────
 
+/// Looks up the species with a given model class index from an
+/// already-loaded in-memory list (see SpeciesProvider) rather than a
+/// network round trip — used for OodResult.closestClassIndex, which every
+/// scan resolves (for ScanDiagnostics) whether or not the result ends up
+/// being shown to the user, so a Supabase query per scan just for this
+/// would add latency/load nothing here actually needs.
+PlantSpecies? _speciesByClassIndex(List<PlantSpecies> species, int classIndex) {
+  for (final s in species) {
+    if (s.modelClassIndex == classIndex) return s;
+  }
+  return null;
+}
+
 /// Runs classification over every photo collected so far. Shared by the
 /// initial "Identify plant" button and the "add another photo" flow, since
 /// both need to react the same way to a confident vs. low-confidence result.
@@ -444,19 +553,48 @@ Future<void> _runIdentification(BuildContext context) async {
   final profileProvider = context.read<ProfileProvider>();
   final dashboardProvider = context.read<DashboardProvider>();
   final offlineQueue = context.read<OfflineScanQueue>();
+  final allSpecies = context.read<SpeciesProvider>().all;
   // Captured before startAnalyzing() swaps this widget out of the tree —
   // the router outlives the context, so it stays valid after the await.
   final router = GoRouter.of(context);
   final images = List<Uint8List>.of(provider.images);
   provider.startAnalyzing();
 
+  final gateClassifier = context.read<GateClassifierService>();
+  final bgIdentifier = context.read<BackgroundIdentifierService>();
+  final oodDetector = context.read<OodDetector>();
+
   try {
-    // Screen the newest photo alone — before it's allowed anywhere near the
-    // weighted average — for "this doesn't look like a plant at all". A
+    final latest = images.last;
+
+    // Layer 1 — cheap raw-pixel quality screen (too dark / too uniform),
+    // before either model runs at all. Never joins the running average and
+    // never counts as one of the 3 attempts — ScanProvider.rejectQuality()
+    // removes it from `images`. checkDetailed (not check) so the raw
+    // brightness/variance survive to the background-identify activation
+    // check further down, without decoding the image a second time.
+    final qualityResult = await _qualityChecker.checkDetailed(latest);
+    if (qualityResult.quality != ImageQuality.good) {
+      provider.rejectQuality(qualityResult.quality);
+      return;
+    }
+
+    // Layer 2 — binary plant/not-plant gate model. Catches confidently-
+    // wrong non-plant photos the species model's own entropy/top-k gate
+    // (below) can miss — see rejection_gate.dart's KNOWN LIMITATION note.
+    // Also never joins the running average / counts as an attempt.
+    final gateResult = await gateClassifier.classify(latest);
+    if (!gateResult.isPlant) {
+      provider.rejectGate(gateResult);
+      return;
+    }
+
+    // Layer 3 — screen the newest photo alone — before it's allowed
+    // anywhere near the weighted average — for "this doesn't look like a
+    // plant at all" via the species model's own entropy/top-k signal. A
     // single-image classify() call gives that photo's own, unaveraged
     // probability distribution (a weighted average of one item is just
     // itself), which is what RejectionGate needs to compute entropy over.
-    final latest = images.last;
     final latestOutput = await classifier.classify([latest]);
     final rejectionLevel = _rejectionGate.evaluate(latestOutput.probabilities);
 
@@ -482,8 +620,145 @@ Future<void> _runIdentification(BuildContext context) async {
     // result (nothing else to average it with).
     final output =
         images.length == 1 ? latestOutput : await classifier.classify(images);
-    final confident = output.confidence >= kConfidenceThreshold;
-    final species = confident ? await repository.getByClassIndex(output.classIndex) : null;
+
+    // Layer 4 — energy-score OOD check (see OodDetector), evaluated on the
+    // same combined multi-photo `output` the confidence decision below
+    // uses. Guaranteed already loaded here — _ScannerReadinessGate awaits
+    // OodDetector.ready before scanning is allowed at all, same as the two
+    // TFJS models.
+    final oodResult = oodDetector.evaluate(output.logits);
+
+    if (oodResult.isOutOfDistribution) {
+      // OOD outranks Claude: skip the background verifier entirely and
+      // navigate straight to UnknownPlantScreen rather than let a
+      // low-confidence-but-still-76-classes softmax result (or a
+      // hypothetical Claude opinion) surface for a photo the feature space
+      // says isn't any of the documented species. This is the only place
+      // that guarantee needs enforcing — Claude is simply never called
+      // below when this branch is taken.
+      final closestSpecies =
+          _speciesByClassIndex(allSpecies, oodResult.closestClassIndex);
+      final closestConfidence =
+          oodResult.closestClassIndex < output.probabilities.length
+              ? output.probabilities[oodResult.closestClassIndex]
+              : 0.0;
+      final secondClosestSpecies =
+          _speciesByClassIndex(allSpecies, oodResult.secondClosestClassIndex);
+      final secondClosestConfidence =
+          oodResult.secondClosestClassIndex < output.probabilities.length
+              ? output.probabilities[oodResult.secondClosestClassIndex]
+              : 0.0;
+
+      // Claude never ran on this path (claudeUsed/claudeChangedPrediction
+      // both false by construction) — see ScanDiagnostics.build's own doc
+      // comment for why this and identification_logs.model_diagnostics
+      // agree with unknown_plant_reports' numbers for the same scan.
+      final diagnostics = ScanDiagnostics.build(
+        decision: ScanDecision.ood,
+        output: output,
+        oodResult: oodResult,
+        gate: _rejectionGate,
+        closestSpecies: closestSpecies,
+        claudeUsed: false,
+        claudeChangedPrediction: false,
+      );
+
+      // Best-effort telemetry, same fire-and-forget/swallow-failure pattern
+      // as Layer 3's rejection log above — every OOD verdict is logged
+      // automatically here regardless of whether the user goes on to tap
+      // "Report Unknown Plant" on the next screen (that button submits a
+      // second, higher-signal, user-confirmed report into
+      // unknown_plant_reports — see UnknownPlantScreen's own doc comment).
+      // Both feed the same knownMultiplier/borderlineMultiplier tuning
+      // OodDetector's own doc comment calls for.
+      unawaited(() async {
+        try {
+          final deviceId = await DeviceId.get();
+          await logger.logRejection(
+            deviceId: deviceId,
+            note: 'rejected: ood_unknown_species',
+            modelDiagnostics: diagnostics,
+          );
+        } catch (_) {
+          // Best-effort — same tolerance as every other rejection log.
+        }
+      }());
+
+      router.go('/results/unknown',
+          extra: UnknownPlantResult(
+            imageBytes: images.first,
+            oodResult: oodResult,
+            closestSpecies: closestSpecies,
+            closestSpeciesConfidence: closestConfidence,
+            secondClosestSpecies: secondClosestSpecies,
+            secondClosestSpeciesConfidence: secondClosestConfidence,
+            diagnostics: diagnostics,
+          ));
+      return;
+    }
+
+    // Hidden background "second opinion" — consulted when the local result
+    // is genuinely ambiguous (see shouldActivate) OR the OOD zone is
+    // Borderline. Always awaited here, before anything is shown to the
+    // user: the existing "Analysing..." state already covers this wait, so
+    // there is no separate loading indicator and no risk of a result
+    // appearing and then silently changing a moment later. Never visible in
+    // the UI — see BackgroundIdentifierService's own doc comment.
+    //
+    // A borderline-triggers-Claude version of this WAS tried and reverted
+    // on 2026-08-07 with the OLD embedding-based OodDetector, because that
+    // detector's threshold was unvalidated AND applyResult had no
+    // confidence floor at the time — the combination meant more scans got
+    // exposed to a Claude override with nothing checking whether Claude was
+    // actually sure. Both of those are fixed now: applyResult requires
+    // Claude's own confidence_score >= _replacementConfidenceFloor before
+    // it can override anything (added in that same review), and OodDetector
+    // now scores the classifier's own logits (see its doc comment) instead
+    // of an embedding space that real validation showed doesn't separate
+    // species well. Re-enabled 2026-08-07 on that basis — see
+    // BackgroundIdentifierService.analysePrediction's oodBorderline
+    // parameter for what this actually changes about the Claude call.
+    BackgroundIdentificationResult? bgResult;
+    if (BackgroundIdentifierService.shouldActivate(
+          output: output,
+          gate: _rejectionGate,
+          brightness: qualityResult.brightness,
+          variance: qualityResult.variance,
+        ) ||
+        oodResult.isBorderline) {
+      bgResult = await bgIdentifier.analysePrediction(
+        images: images,
+        output: output,
+        oodBorderline: oodResult.isBorderline,
+      );
+    }
+    final adjustedOutput = bgResult == null
+        ? output
+        : bgIdentifier.applyResult(localOutput: output, bgResult: bgResult);
+
+    // Same diagnostics payload the OOD branch above builds (see
+    // ScanDiagnostics.build) — populated for every decision, not just OOD,
+    // per that class's own doc comment. decision is never `ood` here: this
+    // code only runs once the isOutOfDistribution branch above has already
+    // returned.
+    final diagnostics = ScanDiagnostics.build(
+      decision:
+          oodResult.isBorderline ? ScanDecision.borderline : ScanDecision.known,
+      output: output,
+      oodResult: oodResult,
+      gate: _rejectionGate,
+      closestSpecies: _speciesByClassIndex(allSpecies, oodResult.closestClassIndex),
+      claudeUsed: bgResult != null,
+      claudeChangedPrediction:
+          bgResult != null && adjustedOutput.classIndex != output.classIndex,
+    );
+
+    // isReliable, not just a raw confidence check — a high averaged
+    // confidence can still hide the 5 TTA passes disagreeing among
+    // themselves (see ClassificationOutput.isReliable).
+    final confident = adjustedOutput.isReliable;
+    final species =
+        confident ? await repository.getByClassIndex(adjustedOutput.classIndex) : null;
 
     // Logging/profile tracking is analytics, not the critical path — a
     // write failure (most commonly the device being offline, but also
@@ -499,7 +774,13 @@ Future<void> _runIdentification(BuildContext context) async {
     unawaited(() async {
       try {
         final deviceId = await DeviceId.get();
-        await logger.log(classification: output, speciesId: species?.id, deviceId: deviceId);
+        await logger.log(
+          classification: adjustedOutput,
+          speciesId: species?.id,
+          deviceId: deviceId,
+          aiAnalysis: bgResult?.toLogJson(),
+          modelDiagnostics: diagnostics,
+        );
         await profileProvider.recordScan(species?.id, species != null);
         // DashboardProvider is loaded once at app startup and otherwise never
         // refetches — without this, Home's Total Scans/Scans Today/Scan
@@ -511,7 +792,7 @@ Future<void> _runIdentification(BuildContext context) async {
         unawaited(dashboardProvider.reload());
       } catch (_) {
         unawaited(offlineQueue.enqueue(PendingScan.fromClassification(
-          classification: output,
+          classification: adjustedOutput,
           speciesId: species?.id,
           isCorrect: species != null,
         )));
@@ -519,17 +800,26 @@ Future<void> _runIdentification(BuildContext context) async {
     }());
 
     if (!confident) {
-      if (provider.canAddMoreImages) {
-        provider.needsMoreImages(output);
+      // Claude's own confidence, independent of the (still honest, never
+      // inflated) local-probability number shown above — when it clears
+      // BackgroundIdentifierService's own bar, another photo probably
+      // won't change the answer, so the retry loop ends now instead of
+      // burning a remaining attempt Claude has already effectively
+      // resolved. See BackgroundIdentifierService.isStronglyConfident.
+      final aiResolved =
+          bgResult != null && BackgroundIdentifierService.isStronglyConfident(bgResult);
+      if (provider.canAddMoreImages && !aiResolved) {
+        provider.needsMoreImages(adjustedOutput);
       } else {
-        // Out of attempts — show the best guess with a low-confidence
-        // warning rather than a dead-end "couldn't identify" page. This is
-        // a separate lookup from `species` above (which stays confidence-
+        // Out of attempts, or Claude is confident enough to end the retry
+        // loop early — show the best guess with a low-confidence warning
+        // rather than a dead-end "couldn't identify" page. This is a
+        // separate lookup from `species` above (which stays confidence-
         // gated so logging/profile stats are unaffected) — display-only.
-        final bestGuess = await repository.getByClassIndex(output.classIndex);
+        final bestGuess = await repository.getByClassIndex(adjustedOutput.classIndex);
         router.go('/results',
             extra: IdentificationResult(
-              classification: output,
+              classification: adjustedOutput,
               species: bestGuess,
               imagePath: 'in-memory',
               attemptCount: images.length,
@@ -540,7 +830,7 @@ Future<void> _runIdentification(BuildContext context) async {
 
     router.go('/results',
         extra: IdentificationResult(
-          classification: output,
+          classification: adjustedOutput,
           species: species,
           imagePath: 'in-memory',
           attemptCount: images.length,
@@ -589,7 +879,7 @@ class _PreviewView extends StatelessWidget {
               child: Row(
                 children: [
                   Icon(Icons.check_circle_outline, size: 17, color: kDeep),
-                  SizedBox(width: 9),
+                  const SizedBox(width: 9),
                   Expanded(
                     child: Text('Good quality — leaf is well-lit and in focus',
                         style: TextStyle(fontSize: 12, color: kDeep)),
@@ -1134,6 +1424,332 @@ class _RejectedView extends StatelessWidget {
               icon: const Icon(Icons.camera_alt_outlined, size: 16),
               label: Text(definite ? 'Scan Again' : 'Try Again',
                   style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+            ),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton(
+              onPressed: () => context.read<ScanProvider>().reset(),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: kMu,
+                side: BorderSide(color: kBorder, width: 0.5),
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                shape: RoundedRectangleBorder(borderRadius: kBRSm),
+              ),
+              child: const Text('Start over', style: TextStyle(fontSize: 13)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// STATE 6 — QUALITY REJECTED (ImageQualityChecker caught it pre-inference)
+// ─────────────────────────────────────────────────────────────
+const _qualityTips = [
+  'Move to a well-lit area — natural daylight works best',
+  'Make sure the lens isn\'t covered or fogged',
+  'Avoid pointing the camera at a blank wall or surface',
+  'Hold the camera steady',
+];
+
+class _QualityRejectedView extends StatelessWidget {
+  final ImageQuality quality;
+  const _QualityRejectedView({required this.quality});
+
+  Future<void> _retry(BuildContext context, ImageSource source) async {
+    final picker = ImagePicker();
+    final file = await picker.pickImage(source: source, maxWidth: 1600);
+    if (file == null) return;
+    final bytes = await file.readAsBytes();
+    if (!context.mounted) return;
+    final provider = context.read<ScanProvider>();
+    // Same discard-only-the-rejected-photo behaviour as _RejectedView —
+    // see ScanProvider.rejectQuality.
+    if (provider.images.isEmpty) {
+      provider.setPreview(bytes);
+    } else {
+      provider.addImage(bytes);
+    }
+    if (!context.mounted) return;
+    await _runIdentification(context);
+  }
+
+  void _pickSource(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      shape: RoundedRectangleBorder(borderRadius: kBRXl),
+      builder: (sheetContext) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.camera_alt_outlined),
+              title: const Text('Capture Image'),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                _retry(context, ImageSource.camera);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Upload from Gallery'),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                _retry(context, ImageSource.gallery);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final message = _qualityChecker.getMessage(quality);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: kRetryBg,
+        borderRadius: kBRXl,
+        border: Border.all(color: kRetry.withValues(alpha: 0.4), width: 0.5),
+      ),
+      child: Column(
+        children: [
+          Icon(Icons.wb_sunny_outlined, size: 42, color: kRetry),
+          const SizedBox(height: 14),
+          Text('Image quality too low',
+              style: TextStyle(
+                  fontSize: 15, fontWeight: FontWeight.w600, color: kTx),
+              textAlign: TextAlign.center),
+          const SizedBox(height: 8),
+          Text(message,
+              style: TextStyle(fontSize: 12.5, color: kMu, height: 1.55),
+              textAlign: TextAlign.center),
+          const SizedBox(height: 18),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: kWhite,
+              borderRadius: kBRLg,
+              border: Border.all(color: kBorder, width: 0.5),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Tips for a good scan:',
+                    style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: kTx)),
+                const SizedBox(height: 8),
+                ..._qualityTips.map((t) => Padding(
+                      padding: const EdgeInsets.only(bottom: 6),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            width: 5,
+                            height: 5,
+                            margin: const EdgeInsets.only(top: 6, right: 9),
+                            decoration: BoxDecoration(
+                                shape: BoxShape.circle, color: kGreen),
+                          ),
+                          Expanded(
+                            child: Text(t,
+                                style: TextStyle(
+                                    fontSize: 12, color: kMu, height: 1.4)),
+                          ),
+                        ],
+                      ),
+                    )),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () => _pickSource(context),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: kRetry,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 13),
+                shape: RoundedRectangleBorder(borderRadius: kBRSm),
+                elevation: 0,
+              ),
+              icon: const Icon(Icons.camera_alt_outlined, size: 16),
+              label: const Text('Try Again',
+                  style:
+                      TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+            ),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton(
+              onPressed: () => context.read<ScanProvider>().reset(),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: kMu,
+                side: BorderSide(color: kBorder, width: 0.5),
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                shape: RoundedRectangleBorder(borderRadius: kBRSm),
+              ),
+              child: const Text('Start over', style: TextStyle(fontSize: 13)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// STATE 7 — GATE REJECTED (binary gate model decided this isn't a plant)
+// ─────────────────────────────────────────────────────────────
+const _gateTips = [
+  'Fill the frame with the plant leaf',
+  'Get closer to the plant',
+  'Use natural daylight',
+  'Avoid photographing the whole tree from far away',
+];
+
+class _GateRejectedView extends StatelessWidget {
+  final GateResult result;
+  const _GateRejectedView({required this.result});
+
+  Future<void> _retry(BuildContext context, ImageSource source) async {
+    final picker = ImagePicker();
+    final file = await picker.pickImage(source: source, maxWidth: 1600);
+    if (file == null) return;
+    final bytes = await file.readAsBytes();
+    if (!context.mounted) return;
+    final provider = context.read<ScanProvider>();
+    // Same discard-only-the-rejected-photo behaviour as _RejectedView —
+    // see ScanProvider.rejectGate.
+    if (provider.images.isEmpty) {
+      provider.setPreview(bytes);
+    } else {
+      provider.addImage(bytes);
+    }
+    if (!context.mounted) return;
+    await _runIdentification(context);
+  }
+
+  void _pickSource(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      shape: RoundedRectangleBorder(borderRadius: kBRXl),
+      builder: (sheetContext) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.camera_alt_outlined),
+              title: const Text('Capture Image'),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                _retry(context, ImageSource.camera);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Upload from Gallery'),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                _retry(context, ImageSource.gallery);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: kUnhealthyBg,
+        borderRadius: kBRXl,
+        border: Border.all(color: const Color(0xFFF7C1C1), width: 0.5),
+      ),
+      child: Column(
+        children: [
+          Icon(Icons.search_off, size: 42, color: kUnhealthyTx),
+          const SizedBox(height: 14),
+          Text('No plant detected',
+              style: TextStyle(
+                  fontSize: 15, fontWeight: FontWeight.w600, color: kTx),
+              textAlign: TextAlign.center),
+          const SizedBox(height: 8),
+          Text(result.message,
+              style: TextStyle(fontSize: 12.5, color: kMu, height: 1.55),
+              textAlign: TextAlign.center),
+          const SizedBox(height: 18),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: kWhite,
+              borderRadius: kBRLg,
+              border: Border.all(color: kBorder, width: 0.5),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Tips for a good scan:',
+                    style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: kTx)),
+                const SizedBox(height: 8),
+                ..._gateTips.map((t) => Padding(
+                      padding: const EdgeInsets.only(bottom: 6),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            width: 5,
+                            height: 5,
+                            margin: const EdgeInsets.only(top: 6, right: 9),
+                            decoration: BoxDecoration(
+                                shape: BoxShape.circle, color: kGreen),
+                          ),
+                          Expanded(
+                            child: Text(t,
+                                style: TextStyle(
+                                    fontSize: 12, color: kMu, height: 1.4)),
+                          ),
+                        ],
+                      ),
+                    )),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () => _pickSource(context),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: kUnhealthyTx,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 13),
+                shape: RoundedRectangleBorder(borderRadius: kBRSm),
+                elevation: 0,
+              ),
+              icon: const Icon(Icons.camera_alt_outlined, size: 16),
+              label: const Text('Scan Again',
+                  style:
+                      TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
             ),
           ),
           const SizedBox(height: 10),

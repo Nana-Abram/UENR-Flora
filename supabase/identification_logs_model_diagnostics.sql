@@ -1,0 +1,12 @@
+-- Adds the structured per-scan diagnostics payload (see
+-- lib/features/scan/services/scan_diagnostics.dart's ScanDiagnostics.build)
+-- to every identification_logs row going forward — decision (known /
+-- borderline / ood), the OOD distance/threshold, entropy, confidence,
+-- top-3 concentration, TTA agreement, closest-centroid species, model
+-- version, and whether/how the background Claude verifier affected the
+-- result. Distinct from the existing ai_analysis column (which is
+-- specifically Claude's own verdict payload, unchanged by this) — this one
+-- is populated on every decision, including the ones ai_analysis is null
+-- for (Claude never ran). Intended for future model improvement and
+-- threshold tuning, never read back by the app.
+ALTER TABLE identification_logs ADD COLUMN IF NOT EXISTS model_diagnostics JSONB;

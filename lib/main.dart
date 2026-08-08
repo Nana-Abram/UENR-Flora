@@ -7,9 +7,15 @@ import 'app.dart';
 import 'core/supabase_client.dart';
 import 'services/classifier_service.dart';
 import 'services/tfjs_classifier_service.dart';
+import 'features/scan/services/background_identifier_service.dart';
+import 'features/scan/services/image_upload_resizer.dart';
+import 'features/scan/services/gate_classifier_service.dart';
+import 'features/scan/services/ood_detector.dart';
+import 'features/scan/services/unknown_plant_reporter.dart';
 import 'services/species_repository.dart';
 import 'services/identification_logger.dart';
 import 'services/supabase_keep_alive.dart';
+import 'services/edge_function_keep_alive.dart';
 import 'core/species_provider.dart';
 import 'core/dashboard_provider.dart';
 import 'core/favorites_provider.dart';
@@ -45,6 +51,7 @@ void main() {
     }
 
     SupabaseKeepAlive(supabase).start();
+    EdgeFunctionKeepAlive(supabase).start();
 
     runApp(_buildApp());
   }, (error, stackTrace) {
@@ -79,13 +86,24 @@ Widget _buildApp() {
       ),
 
       // ── Classifier ────────────────────────────────────────
-      // lazy: false — TfjsClassifierService's constructor kicks off the
-      // model download/compile in the background; that only starts early
-      // enough to matter (i.e. before the user reaches the Scan screen) if
-      // this provider is built at app boot instead of on first read.
+      // lazy: false — these need to exist at app boot so _AppBootstrap
+      // (below) can warm both up right after first frame, well before the
+      // user reaches the Scan screen. Construction itself is cheap (no
+      // network); the actual multi-megabyte model download/compile is
+      // started by warmUp()/loadModel(), deliberately NOT called here — see
+      // _AppBootstrap's comment for why kicking off ~18MB of model fetches
+      // this early (before first paint) was slowing down app boot itself.
       Provider<ClassifierService>(
         lazy: false,
         create: (_) => TfjsClassifierService(),
+      ),
+      Provider<GateClassifierService>(
+        lazy: false,
+        create: (_) => GateClassifierService(),
+      ),
+      Provider<OodDetector>(
+        lazy: false,
+        create: (_) => OodDetector(),
       ),
 
       // ── Shared species data ───────────────────────────────
@@ -137,12 +155,75 @@ Widget _buildApp() {
             ctx.read<ChallengeService>(), ctx.read<PushSubscriptionService>()),
       ),
 
+      // ── Background accuracy layer ──────────────────────────
+      // Default (lazy), unlike the classifiers above — there's no model
+      // download/warm-up to front-load; the Claude call itself happens
+      // entirely server-side (see the background-identify edge function),
+      // and the first real use is inside _runIdentification on the user's
+      // first scan. The closure re-reads SpeciesProvider.all at call time
+      // (not now) since that list is reassigned on every reload.
+      Provider<BackgroundIdentifierService>(
+        create: (ctx) => BackgroundIdentifierService(
+          supabase,
+          () => ctx.read<SpeciesProvider>().all,
+          resizeImageForUpload,
+        ),
+      ),
+      // "Report Unknown Plant" — also lazy, same reasoning as
+      // BackgroundIdentifierService: no warm-up, first use is deep inside
+      // UnknownPlantScreen, which only exists after an OOD scan result.
+      Provider<UnknownPlantReporter>(
+        create: (_) => UnknownPlantReporter(supabase),
+      ),
+
       // ── Screen state ──────────────────────────────────────
       ChangeNotifierProvider(create: (_) => ScanProvider()),
       ChangeNotifierProvider(create: (_) => ExplorerProvider()),
     ],
-    child: const PlantIdApp(),
+    child: const _AppBootstrap(child: PlantIdApp()),
   );
+}
+
+/// Starts the species/gate classifier model downloads (~18MB combined)
+/// right after the first frame paints, instead of at Provider-construction
+/// time (before first paint). Those two downloads used to start racing
+/// CanvasKit and main.dart.js for bandwidth during the app's own boot —
+/// on a slow connection that meant the splash screen stayed up until the
+/// model fetches let go of enough bandwidth for CanvasKit to finish, not
+/// until the app itself was actually ready to paint. Deferring them here
+/// costs nothing: the Scan screen already gates on ClassifierService.ready
+/// / GateClassifierService.ready with its own "Preparing scanner..." state
+/// (see scan_screen.dart), and classify() calls still load the model
+/// themselves on demand if warmUp() hasn't finished yet.
+class _AppBootstrap extends StatefulWidget {
+  final Widget child;
+  const _AppBootstrap({required this.child});
+
+  @override
+  State<_AppBootstrap> createState() => _AppBootstrapState();
+}
+
+class _AppBootstrapState extends State<_AppBootstrap> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<ClassifierService>().warmUp();
+      context.read<GateClassifierService>().loadModel();
+      // Unlike the two calls above, OodDetector.ready does NOT swallow a
+      // load failure (see that getter's own doc comment — this data is
+      // required, not a best-effort perf warm-up) — it's genuinely
+      // memoized. This catchError just attaches an early listener so a
+      // real failure doesn't get logged as an "unhandled exception" before
+      // _ScannerReadinessGate ever awaits the same future; the error itself
+      // still surfaces there (and to _runIdentification's try/catch) once
+      // scanning is actually attempted.
+      unawaited(context.read<OodDetector>().ready.catchError((_) {}));
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }
 
 /// Shown instead of the real app when [SupabaseConfig.initialize] throws —

@@ -1,6 +1,7 @@
 // lib/services/mock_classifier_service.dart
 import 'dart:math';
 import 'dart:typed_data';
+import '../features/scan/services/ood_detector.dart';
 import '../features/scan/services/rejection_gate.dart';
 import '../models/identification_result.dart';
 import 'classifier_service.dart';
@@ -14,6 +15,9 @@ class MockClassifierService implements ClassifierService {
 
   @override
   Future<void> get ready => Future.value();
+
+  @override
+  Future<void> warmUp() => Future.value();
 
   @override
   Future<ClassificationOutput> classify(List<Uint8List> images) async {
@@ -34,6 +38,14 @@ class MockClassifierService implements ClassifierService {
       probabilities[i] = i == classIndex ? confidence : remainder;
     }
 
+    // Random but right-shaped — lets dev-mode exercise the OOD detector
+    // path (which requires exactly OodDetector.logitLength elements)
+    // without loading the real model. Not meaningful data: unlike
+    // `probabilities` above, there's no real logit geometry to fake here,
+    // so this is just noise of the correct length.
+    final logits = List<double>.generate(
+        OodDetector.logitLength, (_) => _rng.nextDouble() * 8 - 4);
+
     return ClassificationOutput(
       classIndex:       classIndex,
       confidence:       confidence,
@@ -42,6 +54,7 @@ class MockClassifierService implements ClassifierService {
                             : HealthStatus.unhealthy,
       healthConfidence: 0.65 + _rng.nextDouble() * 0.30,
       probabilities:    probabilities,
+      logits:           logits,
     );
   }
 }

@@ -4,6 +4,15 @@
 /// Below this value the user is asked to retake the photo.
 const double kConfidenceThreshold = 0.70;
 
+/// Identifies which trained species/OOD model produced a scan — logged
+/// alongside every identification_logs.model_diagnostics entry and
+/// unknown_plant_reports row (see ScanDiagnostics.build) so historical
+/// telemetry stays attributable to a specific model generation once this
+/// gets retrained/re-exported. Bump this by hand whenever
+/// assets/models/model.json (and its paired ood_*.npy assets) are
+/// replaced — nothing derives it automatically.
+const String kModelVersion = 'mobilenetv2-76species-v3';
+
 /// Human-readable app name used in the UI.
 const String kAppName = 'UENR Flora';
 

@@ -163,6 +163,27 @@
   <script src="passkeys_bundle.js" defer></script>
 
   <!--
+    Deliberately placed here — right after passkeys_bundle.js (the one
+    script that genuinely must run before Flutter's plugin registration,
+    see its comment above) and before every other vendored script below.
+    `defer` scripts execute in strict document order, each one blocking the
+    next until it has both downloaded AND run — so with flutter_bootstrap.js
+    listed last (as `flutter build web` generates it by default), Flutter's
+    own boot (fetching CanvasKit + main.dart.js) couldn't even start until
+    tfjs.min.js (1.4MB) and the five scripts after it had all finished
+    downloading first, even though none of them are needed until well after
+    main.dart.js itself has loaded. Moving this tag up lets
+    `_flutter.loader.load()` (inside flutter_bootstrap.js) kick off those
+    fetches immediately in parallel with the rest, instead of queued behind
+    them — verified via web/index.html's splash screen sitting up
+    noticeably longer than it needed to with the old ordering. See also
+    main.dart's _AppBootstrap, which defers the *model* downloads
+    (tfjs-dependent, not just the script) to after first frame for the same
+    reason.
+  -->
+  <script src="flutter_bootstrap.js" defer></script>
+
+  <!--
     Species/health classifier. Vendored locally (npm @tensorflow/tfjs
     4.22.0, matching the converter version that produced
     assets/models/model.json) rather than pulled from a CDN, for the same
@@ -171,6 +192,13 @@
   -->
   <script src="tfjs.min.js" defer></script>
   <script src="classifier.js" defer></script>
+
+  <!--
+    Binary plant/not-plant "gate" model — screens a photo before it ever
+    reaches the 76-class species model above. Defines window.uenrFloraGate,
+    called from lib/features/scan/services/gate_classifier_service.dart.
+  -->
+  <script src="gate_classifier.js" defer></script>
 
   <!--
     Native share-sheet wrapper (Web Share API) with a clipboard fallback.
@@ -200,6 +228,14 @@
     own comments for why.
   -->
   <script src="push.js" defer></script>
+
+  <!--
+    Downscales a photo before it's uploaded to the background-identify
+    edge function (hidden Gemini/Claude "second opinion" layer — see
+    lib/features/scan/services/background_identifier_service.dart).
+    Defines window.uenrImageResize.
+  -->
+  <script src="image_resize.js" defer></script>
 </head>
 <body>
   <!--
@@ -236,6 +272,5 @@
       setTimeout(removeSplash, 10000);
     })();
   </script>
-  <script src="flutter_bootstrap.js" defer></script>
 </body>
 </html>
