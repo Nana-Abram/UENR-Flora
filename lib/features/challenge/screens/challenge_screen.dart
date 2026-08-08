@@ -19,11 +19,11 @@ import '../services/challenge_service.dart';
 const _kGold = Color(0xFFFAC775);
 
 Map<ChallengeType, CategoryStyle> _typeStyles = {
-  ChallengeType.identifyPhoto: CategoryStyle(kDeep, Color(0xFFE3EDE7)),
-  ChallengeType.nameIt: CategoryStyle(kGreen, Color(0xFFE6F2EC)),
+  ChallengeType.identifyPhoto: CategoryStyle(kDeep, const Color(0xFFE3EDE7)),
+  ChallengeType.nameIt: CategoryStyle(kGreen, const Color(0xFFE6F2EC)),
   ChallengeType.findIt: CategoryStyle(kAccent, kAccentL),
-  ChallengeType.trueFalse: CategoryStyle(Color(0xFF40916C), Color(0xFFE8F4EE)),
-  ChallengeType.familyMatch: CategoryStyle(Color(0xFF973C00), Color(0xFFFFFBEB)),
+  ChallengeType.trueFalse: const CategoryStyle(Color(0xFF40916C), Color(0xFFE8F4EE)),
+  ChallengeType.familyMatch: const CategoryStyle(Color(0xFF973C00), Color(0xFFFFFBEB)),
 };
 
 String _formatDate(DateTime d) {
@@ -235,7 +235,7 @@ class _ChallengeContent extends StatelessWidget {
 
     if (provider.isLoading) {
       return Padding(
-        padding: EdgeInsets.symmetric(vertical: 60),
+        padding: const EdgeInsets.symmetric(vertical: 60),
         child: Center(child: CircularProgressIndicator(color: kDeep)),
       );
     }
@@ -283,10 +283,10 @@ class _NoChallengeState extends StatelessWidget {
       child: Column(
         children: [
           Icon(Icons.event_busy_outlined, size: 40, color: kMu),
-          SizedBox(height: 14),
+          const SizedBox(height: 14),
           Text('No challenge today',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: kTx)),
-          SizedBox(height: 6),
+          const SizedBox(height: 6),
           Text('Check back tomorrow for a brand new plant challenge!',
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 13, color: kMu)),
@@ -786,7 +786,7 @@ class _ResultPanel extends StatelessWidget {
                 children: [
                   Row(children: [
                     Icon(Icons.lightbulb_outline, size: 16, color: kGreen),
-                    SizedBox(width: 7),
+                    const SizedBox(width: 7),
                     Text('Did you know?',
                         style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: kGreen)),
                   ]),

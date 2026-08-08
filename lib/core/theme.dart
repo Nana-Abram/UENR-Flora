@@ -233,7 +233,7 @@ ThemeData buildAppTheme({required bool dark}) {
       foregroundColor: _kDeepBoth,
       elevation: 0,
       scrolledUnderElevation: 0,
-      titleTextStyle: TextStyle(
+      titleTextStyle: const TextStyle(
         fontFamily: kFontDisplay, fontSize: 15, fontWeight: FontWeight.w500, color: _kDeepBoth),
     ),
     cardTheme: CardThemeData(

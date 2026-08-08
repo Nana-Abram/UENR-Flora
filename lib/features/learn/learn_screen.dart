@@ -29,28 +29,28 @@ class LearnScreen extends StatelessWidget {
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: kMaxContentWidth),
                 child: Padding(
-                  padding: EdgeInsets.fromLTRB(kSp24, kSp16, kSp24, kSp32),
+                  padding: const EdgeInsets.fromLTRB(kSp24, kSp16, kSp24, kSp32),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Breadcrumb(current: 'Learn'),
-                      SizedBox(height: 16),
+                      const Breadcrumb(current: 'Learn'),
+                      const SizedBox(height: 16),
                       Text('Learn & Discover',
                           style: TextStyle(
                               fontFamily: kFontDisplay,
                               fontSize: 32,
                               fontWeight: FontWeight.w600,
                               color: kTx)),
-                      SizedBox(height: 6),
+                      const SizedBox(height: 6),
                       Text(
                           'Environmental education modules and articles tailored to UENR students and researchers.',
                           style: TextStyle(fontSize: 14, color: kMu)),
-                      SizedBox(height: 24),
-                      _FeaturedBanner(),
-                      SizedBox(height: 36),
-                      _CategorySection(),
-                      SizedBox(height: 36),
-                      _ArticleSection(),
+                      const SizedBox(height: 24),
+                      const _FeaturedBanner(),
+                      const SizedBox(height: 36),
+                      const _CategorySection(),
+                      const SizedBox(height: 36),
+                      const _ArticleSection(),
                     ],
                   ),
                 ),

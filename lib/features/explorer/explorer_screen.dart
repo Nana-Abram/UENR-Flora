@@ -496,7 +496,7 @@ class _PlantGridSliver extends StatelessWidget {
     if (speciesState.loading) {
       return SliverToBoxAdapter(
         child: Padding(
-          padding: EdgeInsets.all(60),
+          padding: const EdgeInsets.all(60),
           child: Center(child: CircularProgressIndicator(color: kDeep)),
         ),
       );
@@ -530,7 +530,7 @@ class _PlantGridSliver extends StatelessWidget {
     if (plants.isEmpty) {
       return SliverToBoxAdapter(
         child: Padding(
-          padding: EdgeInsets.all(40),
+          padding: const EdgeInsets.all(40),
           child: Center(
             child: Text('No plants found for this filter.',
                 style: TextStyle(fontSize: 13, color: kMu)),

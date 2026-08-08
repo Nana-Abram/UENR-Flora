@@ -62,7 +62,7 @@ class AppNavbar extends StatelessWidget {
                     const SizedBox(width: 10),
                     RichText(
                       text: TextSpan(
-                        style: TextStyle(
+                        style: const TextStyle(
                             fontFamily: kFontDisplay,
                             fontSize: 16,
                             fontWeight: FontWeight.w500),

@@ -32,7 +32,7 @@ class StatCard extends StatelessWidget {
   final BorderRadius? cardRadius;
   final List<BoxShadow>? shadow;
 
-  StatCard({
+  const StatCard({
     super.key,
     required this.data,
     this.iconCircleSize = 32,

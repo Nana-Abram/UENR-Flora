@@ -10,7 +10,7 @@ class FactCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
       decoration: BoxDecoration(
-        color: Color(0xFF2D6A4F),
+        color: const Color(0xFF2D6A4F),
         borderRadius: kBRXl,
         border: Border.all(color: kMint, width: 0.5),
       ),

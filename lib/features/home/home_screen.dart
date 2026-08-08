@@ -480,7 +480,7 @@ class _FeaturedSpeciesSection extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text('View all', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: kGreen)),
-                  SizedBox(width: 2),
+                  const SizedBox(width: 2),
                   Icon(Icons.chevron_right, size: 15, color: kGreen),
                 ],
               ),
@@ -490,7 +490,7 @@ class _FeaturedSpeciesSection extends StatelessWidget {
         const SizedBox(height: 14),
         if (speciesState.loading)
           Padding(
-            padding: EdgeInsets.symmetric(vertical: 30),
+            padding: const EdgeInsets.symmetric(vertical: 30),
             child: Center(child: CircularProgressIndicator(color: kDeep)),
           )
         else if (speciesState.error != null)
@@ -509,7 +509,7 @@ class _FeaturedSpeciesSection extends StatelessWidget {
           )
         else if (featured.isEmpty)
           Padding(
-            padding: EdgeInsets.symmetric(vertical: 20),
+            padding: const EdgeInsets.symmetric(vertical: 20),
             child: Text('No species documented yet.', style: TextStyle(fontSize: 13, color: kMu)),
           )
         else
@@ -700,7 +700,7 @@ class _SpeciesDistributionCard extends StatelessWidget {
           const SizedBox(height: 18),
           if (total == 0)
             Padding(
-              padding: EdgeInsets.symmetric(vertical: 20),
+              padding: const EdgeInsets.symmetric(vertical: 20),
               child: Center(
                 child: Text('No species data yet.', style: TextStyle(fontSize: 12, color: kMu)),
               ),
@@ -784,10 +784,8 @@ class _QuickActionsCard extends StatelessWidget {
           const SizedBox(height: 14),
           _QuickActionRow(
             icon: Icons.favorite_border, iconColor: kUnhealthyTx, iconBg: kUnhealthyBg,
-            title: 'My Saved Plants', subtitle: 'Coming soon',
-            onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Saved plants — coming soon')),
-            ),
+            title: 'My Saved Plants', subtitle: 'View your favorites',
+            onTap: () => context.go('/profile?tab=saved'),
           ),
         ],
       ),
@@ -955,7 +953,7 @@ class _ScanActivitySectionState extends State<_ScanActivitySection> {
           const SizedBox(height: 14),
           if (dashboard.totalScans == 0)
             Padding(
-              padding: EdgeInsets.symmetric(vertical: 30),
+              padding: const EdgeInsets.symmetric(vertical: 30),
               child: Center(
                 child: Text('No scan activity yet — identify a plant to see trends.',
                     style: TextStyle(fontSize: 12, color: kMu)),
@@ -1035,7 +1033,7 @@ class _PageFooter extends StatelessWidget {
           child: RichText(
             text: TextSpan(
               text: 'UENR Flora',
-              style: TextStyle(fontSize: 13, color: Colors.black87),
+              style: const TextStyle(fontSize: 13, color: Colors.black87),
               children: [
                 TextSpan(
                   text: ' · Group 4 Final Year Project · BSc Computer Science',

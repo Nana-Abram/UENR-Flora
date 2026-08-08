@@ -22,7 +22,7 @@ class Breadcrumb extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(Icons.location_on_outlined, size: 14, color: kMu),
-              SizedBox(width: 6),
+              const SizedBox(width: 6),
               Text('UENR Campus', style: TextStyle(fontSize: 13, color: kMu)),
             ],
           ),

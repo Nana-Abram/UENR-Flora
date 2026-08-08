@@ -184,7 +184,7 @@ class _NotificationList extends StatelessWidget {
 
     if (provider.isLoading) {
       return Padding(
-        padding: EdgeInsets.symmetric(vertical: 60),
+        padding: const EdgeInsets.symmetric(vertical: 60),
         child: Center(child: CircularProgressIndicator(color: kDeep)),
       );
     }
@@ -327,11 +327,11 @@ class _EmptyState extends StatelessWidget {
       ),
       child: Column(
         children: [
-          Text('🔔', style: TextStyle(fontSize: 40)),
-          SizedBox(height: 14),
+          const Text('🔔', style: TextStyle(fontSize: 40)),
+          const SizedBox(height: 14),
           Text('No notifications yet',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: kTx)),
-          SizedBox(height: 6),
+          const SizedBox(height: 6),
           Text("You'll see challenge reminders, achievements, and updates here.",
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 13, color: kMu)),
