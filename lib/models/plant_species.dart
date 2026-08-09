@@ -40,6 +40,12 @@ class PlantSpecies {
   final String? fruitDescription;
   final String? barkDescription;
 
+  /// WHEN/HOW/WHERE planting guidance for `growth_type == 'ornamental'`
+  /// species — see supabase/ornamental_planting_advice.sql and
+  /// PlantingGuideTab. Null for non-ornamental species, and for any
+  /// ornamental species that hasn't had advice authored for it yet.
+  final String? plantingAdvice;
+
   const PlantSpecies({
     required this.id,
     required this.scientificName,
@@ -71,6 +77,7 @@ class PlantSpecies {
     this.flowerDescription,
     this.fruitDescription,
     this.barkDescription,
+    this.plantingAdvice,
   });
 
   factory PlantSpecies.fromMap(Map<String, dynamic> map) {
@@ -111,6 +118,7 @@ class PlantSpecies {
       flowerDescription:     map['flower_description'] as String?,
       fruitDescription:      map['fruit_description'] as String?,
       barkDescription:       map['bark_description'] as String?,
+      plantingAdvice:        map['planting_advice'] as String?,
       didYouKnowFacts: factsRaw
           .map((f) => requireField<String>(f as Map<String, dynamic>, 'fact_text',
               table: 'plant_facts'))
@@ -156,6 +164,7 @@ class PlantSpecies {
         'flower_description': flowerDescription,
         'fruit_description': fruitDescription,
         'bark_description': barkDescription,
+        'planting_advice': plantingAdvice,
       };
 
   factory PlantSpecies.fromJson(Map<String, dynamic> map) => PlantSpecies(
@@ -191,5 +200,6 @@ class PlantSpecies {
         flowerDescription: map['flower_description'] as String?,
         fruitDescription: map['fruit_description'] as String?,
         barkDescription: map['bark_description'] as String?,
+        plantingAdvice: map['planting_advice'] as String?,
       );
 }

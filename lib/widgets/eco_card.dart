@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
 import '../core/theme.dart';
+import '../core/widgets/bullet_list.dart';
 
 class EcoCard extends StatelessWidget {
   final String title;
-  final String body;
+  final String? body;
+  /// When set, rendered as a [BulletList] instead of [body] — used for the
+  /// long-form uses/description fields (medicinal uses, ecological
+  /// importance, etc.) that read better as bullets than a single paragraph.
+  final List<String>? bullets;
   final Color? iconBg;
   final Color? iconColor;
   final IconData? icon;
@@ -11,11 +16,13 @@ class EcoCard extends StatelessWidget {
   const EcoCard({
     super.key,
     required this.title,
-    required this.body,
+    this.body,
+    this.bullets,
     this.iconBg,
     this.iconColor,
     this.icon,
-  });
+  }) : assert(body != null || bullets != null,
+            'EcoCard needs either body or bullets');
 
   @override
   Widget build(BuildContext context) {
@@ -55,9 +62,12 @@ class EcoCard extends StatelessWidget {
                   style: TextStyle(
                       fontSize: 13, fontWeight: FontWeight.w500, color: kTx)),
             ),
-          Text(body,
-              style: TextStyle(
-                  fontSize: 12, color: kMu, height: 1.55)),
+          if (bullets != null)
+            BulletList(items: bullets!, bulletColor: kDeep)
+          else
+            Text(body!,
+                style: TextStyle(
+                    fontSize: 12, color: kMu, height: 1.55)),
         ],
       ),
     );

@@ -9,10 +9,13 @@ import '../core/dashboard_provider.dart';
 import '../core/favorites_provider.dart';
 import '../core/species_text.dart';
 import '../core/string_utils.dart';
+import '../core/utils/text_formatter.dart';
+import '../core/widgets/bullet_list.dart';
 import '../models/plant_species.dart';
 import '../services/web_share_service.dart';
 import 'eco_card.dart';
 import 'info_row.dart';
+import 'planting_guide_tab.dart';
 import 'read_aloud_button.dart';
 
 /// Opens the plant detail popup over a blurred backdrop of the current screen.
@@ -78,12 +81,30 @@ class _PlantDetailModal extends StatefulWidget {
 
 class _PlantDetailModalState extends State<_PlantDetailModal> {
   int _tab = 0;
-  static const _tabs = ['Overview', 'Ecology', 'Benefits', 'Care Tips', 'Gallery'];
 
   PlantSpecies get _detail => widget.species;
 
+  /// Tab label + content paired together so inserting "Planting Guide" for
+  /// ornamental species can't desync a label from the wrong case in a
+  /// positional switch.
+  List<(String, WidgetBuilder)> get _tabs {
+    final advice = _detail.plantingAdvice;
+    final showPlantingGuide =
+        _detail.growthType == 'ornamental' && advice != null && advice.isNotEmpty;
+    return [
+      ('Overview', (_) => _buildOverviewTab()),
+      ('Ecology', (_) => _buildEcologyTab()),
+      ('Benefits', (_) => _buildBenefitsTab()),
+      ('Care Tips', (_) => _buildCareTab()),
+      if (showPlantingGuide) ('Planting Guide', (_) => PlantingGuideTab(advice: advice)),
+      ('Gallery', (_) => _buildGalleryTab()),
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
+    final tabs = _tabs;
+    if (_tab >= tabs.length) _tab = 0;
     return ClipRRect(
       borderRadius: kBRXl,
       child: Container(
@@ -95,10 +116,10 @@ class _PlantDetailModalState extends State<_PlantDetailModal> {
             children: [
               _buildHeader(),
               _buildInfoBar(),
-              _buildTabBar(),
+              _buildTabBar(tabs),
               Padding(
                 padding: const EdgeInsets.all(kSp24),
-                child: _buildTabContent(),
+                child: tabs[_tab].$2(context),
               ),
             ],
           ),
@@ -298,7 +319,7 @@ class _PlantDetailModalState extends State<_PlantDetailModal> {
   }
 
   // ── Tab bar ──────────────────────────────────────────────────────
-  Widget _buildTabBar() {
+  Widget _buildTabBar(List<(String, WidgetBuilder)> tabs) {
     return Container(
       decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: kBorder, width: 0.5)),
@@ -307,7 +328,7 @@ class _PlantDetailModalState extends State<_PlantDetailModal> {
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: kSp24),
         child: Row(
-          children: List.generate(_tabs.length, (i) {
+          children: List.generate(tabs.length, (i) {
             final active = _tab == i;
             return GestureDetector(
               onTap: () => setState(() => _tab = i),
@@ -317,7 +338,7 @@ class _PlantDetailModalState extends State<_PlantDetailModal> {
                   border: Border(bottom: BorderSide(
                       color: active ? kDeep : Colors.transparent, width: 2)),
                 ),
-                child: Text(_tabs[i],
+                child: Text(tabs[i].$1,
                     style: TextStyle(
                         fontSize: 13, fontWeight: FontWeight.w500,
                         color: active ? kDeep : kMu)),
@@ -329,152 +350,157 @@ class _PlantDetailModalState extends State<_PlantDetailModal> {
     );
   }
 
-  Widget _buildTabContent() {
-    switch (_tab) {
-      case 0:
-        return LayoutBuilder(builder: (_, bc) {
-          final narrow = bc.maxWidth < kBreakpointMd;
-          final overviewCol = Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildOverviewTab() {
+    return LayoutBuilder(builder: (_, bc) {
+      final narrow = bc.maxWidth < kBreakpointMd;
+      final overviewCol = Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(speciesOverviewIntro(_detail),
+              style: TextStyle(fontSize: 13, color: kMu, height: 1.6)),
+          const SizedBox(height: 12),
+          BulletList(items: toBullets(_detail.ecologicalImportance ?? '')),
+          const SizedBox(height: 16),
+          GridView.count(
+            shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
+            crossAxisCount: 2, crossAxisSpacing: 8, mainAxisSpacing: 8,
+            childAspectRatio: 3.0,
             children: [
-              Text(speciesOverviewSummary(_detail),
-                  style: TextStyle(fontSize: 13, color: kMu, height: 1.6)),
-              const SizedBox(height: 16),
-              GridView.count(
-                shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
-                crossAxisCount: 2, crossAxisSpacing: 8, mainAxisSpacing: 8,
-                childAspectRatio: 3.0,
-                children: [
-                  InfoRow('Height', _detail.heightRange ?? '—'),
-                  InfoRow('Leaf Shape', _detail.leafType ?? '—'),
-                  InfoRow('Flowering', _detail.floweringSeason ?? '—'),
-                  InfoRow('Soil', _detail.soilPreference ?? '—'),
-                ],
-              ),
+              InfoRow('Height', _detail.heightRange ?? '—'),
+              InfoRow('Leaf Shape', _detail.leafType ?? '—'),
+              InfoRow('Flowering', _detail.floweringSeason ?? '—'),
+              InfoRow('Soil', _detail.soilPreference ?? '—'),
             ],
-          );
-          final didYouKnow = _detail.didYouKnowFacts.isNotEmpty
-              ? Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFFFBEB),
-                    borderRadius: kBRLg,
-                    border: Border.all(color: Colors.amber, width: 0.5),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+          ),
+        ],
+      );
+      final didYouKnow = _detail.didYouKnowFacts.isNotEmpty
+          ? Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFFBEB),
+                borderRadius: kBRLg,
+                border: Border.all(color: Colors.amber, width: 0.5),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Row(
                     children: [
-                      const Row(
-                        children: [
-                          Icon(Icons.lightbulb_outline, size: 15, color: Colors.amber),
-                          SizedBox(width: 7),
-                          Text('Did you know?',
-                              style: TextStyle(
-                                  fontSize: 12, fontWeight: FontWeight.w500, color: Color(0xFF973C00))),
-                        ],
-                      ),
-                      const SizedBox(height: 7),
-                      Text(_detail.didYouKnowFacts.first,
-                          style: const TextStyle(fontSize: 12, color: Color(0xFF973C00), height: 1.5)),
+                      Icon(Icons.lightbulb_outline, size: 15, color: Colors.amber),
+                      SizedBox(width: 7),
+                      Text('Did you know?',
+                          style: TextStyle(
+                              fontSize: 12, fontWeight: FontWeight.w500, color: Color(0xFF973C00))),
                     ],
                   ),
-                )
-              : null;
-          if (narrow) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                overviewCol,
-                if (didYouKnow != null) ...[const SizedBox(height: 16), didYouKnow],
-              ],
-            );
-          }
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(flex: 3, child: overviewCol),
-              if (didYouKnow != null) ...[
-                const SizedBox(width: 16),
-                Expanded(flex: 2, child: didYouKnow),
-              ],
-            ],
-          );
-        });
-      case 1:
-        return Column(children: [
-          EcoCard(
-            iconBg: kLight, iconColor: kGreen, icon: Icons.air_outlined,
-            title: 'Carbon absorption',
-            body: _detail.environmentalBenefits ??
-                'Absorbs CO₂ annually, contributing to campus carbon neutrality goals.',
-          ),
-          EcoCard(
-            iconBg: kLight, iconColor: kDeep, icon: Icons.park_outlined,
-            title: 'Wildlife support',
-            body: _detail.ecologicalImportance ??
-                'Supports birds and bees; seeds eaten by many bird species.',
-          ),
-        ]);
-      case 2:
-        return Column(children: [
-          EcoCard(
-            title: 'Medicinal uses',
-            body: _detail.medicinalUses ?? 'Traditional medicinal uses documented.'),
-          EcoCard(
-            title: 'Economic importance',
-            body: _detail.economicImportance ?? 'Significant economic value.'),
-        ]);
-      case 3:
-        return LayoutBuilder(builder: (_, bc) {
-          final narrow = bc.maxWidth < kBreakpointMd;
-          final growing = _CareGroupCard(
-            title: 'Growing Requirements',
-            children: [
-              _CareGroupRow(
-                  icon: Icons.water_drop_outlined, iconColor: const Color(0xFF185FA5),
-                  label: 'Water',
-                  value: _detail.waterRequirements ?? 'Moderate watering requirements.'),
-              _CareGroupRow(
-                  icon: Icons.wb_sunny_outlined, iconColor: kAccent,
-                  label: 'Sunlight',
-                  value: _detail.sunlightRequirements ?? 'Full sun preferred.'),
-              _CareGroupRow(
-                  icon: Icons.layers_outlined, iconColor: kDeep,
-                  label: 'Soil',
-                  value: _detail.soilPreference ?? 'Well-draining, loamy soil preferred.'),
-            ],
-          );
-          final phenology = _CareGroupCard(
-            title: 'Phenology',
-            children: [
-              _PhenologyLine(label: 'Leaf shape', value: _detail.leafType ?? '—'),
-              _PhenologyLine(label: 'Flowering', value: _detail.floweringSeason ?? '—'),
-              _PhenologyLine(label: 'Max height', value: _detail.heightRange ?? '—'),
-            ],
-          );
-          if (narrow) {
-            return Column(
-              children: [growing, const SizedBox(height: 16), phenology],
-            );
-          }
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(child: growing),
-              const SizedBox(width: 16),
-              Expanded(child: phenology),
-            ],
-          );
-        });
-      case 4:
-        return _GalleryTab(
-          imageUrls: _detail.galleryImageUrls,
-          cardColor: widget.cardColor,
-          iconColor: widget.iconColor,
+                  const SizedBox(height: 7),
+                  Text(_detail.didYouKnowFacts.first,
+                      style: const TextStyle(fontSize: 12, color: Color(0xFF973C00), height: 1.5)),
+                ],
+              ),
+            )
+          : null;
+      if (narrow) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            overviewCol,
+            if (didYouKnow != null) ...[const SizedBox(height: 16), didYouKnow],
+          ],
         );
-      default:
-        return const SizedBox.shrink();
-    }
+      }
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(flex: 3, child: overviewCol),
+          if (didYouKnow != null) ...[
+            const SizedBox(width: 16),
+            Expanded(flex: 2, child: didYouKnow),
+          ],
+        ],
+      );
+    });
+  }
+
+  Widget _buildEcologyTab() {
+    return Column(children: [
+      EcoCard(
+        iconBg: kLight, iconColor: kGreen, icon: Icons.air_outlined,
+        title: 'Carbon absorption',
+        bullets: toBullets(_detail.environmentalBenefits ??
+            'Absorbs CO₂ annually, contributing to campus carbon neutrality goals.'),
+      ),
+      EcoCard(
+        iconBg: kLight, iconColor: kDeep, icon: Icons.park_outlined,
+        title: 'Wildlife support',
+        bullets: toBullets(_detail.ecologicalImportance ??
+            'Supports birds and bees; seeds eaten by many bird species.'),
+      ),
+    ]);
+  }
+
+  Widget _buildBenefitsTab() {
+    return Column(children: [
+      EcoCard(
+        title: 'Medicinal uses',
+        bullets: toBullets(_detail.medicinalUses ?? 'Traditional medicinal uses documented.')),
+      EcoCard(
+        title: 'Economic importance',
+        bullets: toBullets(_detail.economicImportance ?? 'Significant economic value.')),
+    ]);
+  }
+
+  Widget _buildCareTab() {
+    return LayoutBuilder(builder: (_, bc) {
+      final narrow = bc.maxWidth < kBreakpointMd;
+      final growing = _CareGroupCard(
+        title: 'Growing Requirements',
+        children: [
+          _CareGroupRow(
+              icon: Icons.water_drop_outlined, iconColor: const Color(0xFF185FA5),
+              label: 'Water',
+              value: _detail.waterRequirements ?? 'Moderate watering requirements.'),
+          _CareGroupRow(
+              icon: Icons.wb_sunny_outlined, iconColor: kAccent,
+              label: 'Sunlight',
+              value: _detail.sunlightRequirements ?? 'Full sun preferred.'),
+          _CareGroupRow(
+              icon: Icons.layers_outlined, iconColor: kDeep,
+              label: 'Soil',
+              value: _detail.soilPreference ?? 'Well-draining, loamy soil preferred.'),
+        ],
+      );
+      final phenology = _CareGroupCard(
+        title: 'Phenology',
+        children: [
+          _PhenologyLine(label: 'Leaf shape', value: _detail.leafType ?? '—'),
+          _PhenologyLine(label: 'Flowering', value: _detail.floweringSeason ?? '—'),
+          _PhenologyLine(label: 'Max height', value: _detail.heightRange ?? '—'),
+        ],
+      );
+      if (narrow) {
+        return Column(
+          children: [growing, const SizedBox(height: 16), phenology],
+        );
+      }
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(child: growing),
+          const SizedBox(width: 16),
+          Expanded(child: phenology),
+        ],
+      );
+    });
+  }
+
+  Widget _buildGalleryTab() {
+    return _GalleryTab(
+      imageUrls: _detail.galleryImageUrls,
+      cardColor: widget.cardColor,
+      iconColor: widget.iconColor,
+    );
   }
 }
 

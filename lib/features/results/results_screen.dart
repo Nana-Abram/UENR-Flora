@@ -8,6 +8,7 @@ import '../../core/constants.dart';
 import '../../core/species_provider.dart';
 import '../../core/favorites_provider.dart';
 import '../../core/species_text.dart';
+import '../../core/utils/text_formatter.dart';
 import '../../models/identification_result.dart';
 import '../../models/plant_species.dart';
 import '../../services/web_share_service.dart';
@@ -19,6 +20,7 @@ import '../../widgets/eco_card.dart';
 import '../../widgets/care_row.dart';
 import '../../widgets/hover_lift.dart';
 import '../../widgets/hover_zoom_image.dart';
+import '../../widgets/planting_guide_tab.dart';
 import '../../widgets/read_aloud_button.dart';
 
 class ResultsScreen extends StatefulWidget {
@@ -31,7 +33,23 @@ class ResultsScreen extends StatefulWidget {
 
 class _ResultsScreenState extends State<ResultsScreen> {
   int _tab = 0;
-  final _tabs = ['Overview', 'Ecology', 'Benefits', 'Care', 'Fun facts'];
+
+  /// Tab label + content paired together so inserting "Planting Guide" for
+  /// ornamental species can't desync a label from the wrong case in a
+  /// separate positional switch — see [_buildTabContent] in
+  /// plant_detail_modal.dart's history for the bug this shape avoids.
+  List<(String, WidgetBuilder)> _buildTabs(PlantSpecies species, ClassificationOutput cls) {
+    final advice = species.plantingAdvice;
+    final showPlantingGuide = species.growthType == 'ornamental' && advice != null && advice.isNotEmpty;
+    return [
+      ('Overview', (_) => _TabOverview(species: species, cls: cls)),
+      ('Ecology', (_) => _TabEcology(species: species)),
+      ('Benefits', (_) => _TabBenefits(species: species)),
+      ('Care', (_) => _TabCare(species: species)),
+      if (showPlantingGuide) ('Planting Guide', (_) => PlantingGuideTab(advice: advice)),
+      ('Fun facts', (_) => _TabFacts(species: species)),
+    ];
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -50,6 +68,8 @@ class _ResultsScreenState extends State<ResultsScreen> {
     }
 
     final cls = widget.result.classification;
+    final tabs = _buildTabs(species, cls);
+    if (_tab >= tabs.length) _tab = 0;
 
     return SingleChildScrollView(
       child: Column(
@@ -110,8 +130,8 @@ class _ResultsScreenState extends State<ResultsScreen> {
                       scrollDirection: Axis.horizontal,
                       padding: const EdgeInsets.symmetric(horizontal: kSp24),
                       child: Row(
-                        children: List.generate(_tabs.length, (i) => _TabBtn(
-                          label: _tabs[i],
+                        children: List.generate(tabs.length, (i) => _TabBtn(
+                          label: tabs[i].$1,
                           active: _tab == i,
                           onTap: () => setState(() => _tab = i),
                         )),
@@ -122,7 +142,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
                   // Tab content
                   Padding(
                     padding: const EdgeInsets.fromLTRB(kSp24, 20, kSp24, 0),
-                    child: _buildTabContent(species, cls),
+                    child: tabs[_tab].$2(context),
                   ),
 
                   // Similar species
@@ -153,16 +173,6 @@ class _ResultsScreenState extends State<ResultsScreen> {
     );
   }
 
-  Widget _buildTabContent(PlantSpecies species, ClassificationOutput cls) {
-    switch (_tab) {
-      case 0: return _TabOverview(species: species, cls: cls);
-      case 1: return _TabEcology(species: species);
-      case 2: return _TabBenefits(species: species);
-      case 3: return _TabCare(species: species);
-      case 4: return _TabFacts(species: species);
-      default: return const SizedBox.shrink();
-    }
-  }
 }
 
 // ── Top bar: back link + health pill, mirrors the reference design's ──
@@ -755,18 +765,20 @@ class _TabEcology extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final benefitsBullets = toBullets(species.environmentalBenefits ??
+        'Absorbs CO₂ annually, contributing to campus carbon neutrality goals.');
+    final importanceBullets = toBullets(species.ecologicalImportance ??
+        'Provides habitat and food sources for campus wildlife.');
     return Column(children: [
       EcoCard(
         iconBg: kLight, iconColor: kDeep, icon: Icons.cloud_outlined,
         title: 'Carbon sequestration',
-        body: species.environmentalBenefits ??
-            'Absorbs CO₂ annually, contributing to campus carbon neutrality goals.',
+        bullets: benefitsBullets,
       ),
       EcoCard(
         iconBg: kLight, iconColor: kGreen, icon: Icons.air_outlined,
         title: 'Wildlife support',
-        body: species.ecologicalImportance ??
-            'Provides habitat and food sources for campus wildlife.',
+        bullets: importanceBullets,
       ),
       const SizedBox(height: 8),
     ]);
@@ -783,10 +795,11 @@ class _TabBenefits extends StatelessWidget {
     return Column(children: [
       EcoCard(
         title: 'Medicinal uses',
-        body: species.medicinalUses ?? 'No documented medicinal uses.'),
+        bullets: toBullets(species.medicinalUses ?? 'No documented medicinal uses.')),
       EcoCard(
         title: 'Economic importance',
-        body: species.economicImportance ?? 'No documented economic importance.'),
+        bullets:
+            toBullets(species.economicImportance ?? 'No documented economic importance.')),
       const SizedBox(height: 8),
     ]);
   }
