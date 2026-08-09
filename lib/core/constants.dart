@@ -17,7 +17,7 @@ const String kModelVersion = 'mobilenetv2-76species-v3';
 const String kAppName = 'UENR Flora';
 
 /// Tagline shown in the hero section.
-const String kAppTagline = 'Identify every plant on campus — instantly';
+const String kAppTagline = 'Identify every plant on campus, instantly';
 
 /// Responsive breakpoints — used with LayoutBuilder in every screen.
 const double kBreakpointSm = 480.0;

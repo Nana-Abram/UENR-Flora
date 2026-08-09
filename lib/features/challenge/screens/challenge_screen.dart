@@ -767,7 +767,7 @@ class _ResultPanel extends StatelessWidget {
                 Text(
                   correct
                       ? 'Correct! +${provider.pointsEarned} points'
-                      : 'Not quite — the answer was ${provider.correctAnswer}',
+                      : 'Not quite, the answer was ${provider.correctAnswer}',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                       fontSize: 16, fontWeight: FontWeight.w600,
@@ -834,7 +834,7 @@ class _ResultPanel extends StatelessWidget {
             alignment: WrapAlignment.center,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              Text('Come back tomorrow — next challenge in ',
+              Text('Come back tomorrow, next challenge in ',
                   style: TextStyle(fontSize: 12, color: kMu)),
               _CountdownToTomorrow(
                 style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: kTx),

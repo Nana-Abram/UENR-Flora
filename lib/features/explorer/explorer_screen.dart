@@ -366,7 +366,7 @@ class _CompareBar extends StatelessWidget {
           Expanded(
             child: Text(
               canCompare
-                  ? '2 species selected — ready to compare.'
+                  ? '2 species selected, ready to compare.'
                   : 'Select ${2 - selection.length} more species to compare (${selection.length}/2 selected).',
               style: TextStyle(fontSize: 13, color: kTx),
             ),

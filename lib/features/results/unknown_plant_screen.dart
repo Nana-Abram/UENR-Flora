@@ -433,7 +433,7 @@ class _ReportButtonState extends State<_ReportButton> {
       // is the retry action — no extra UI needed beyond the snackbar.
       setState(() => _state = _ReportState.idle);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Couldn't send report — please try again")),
+        const SnackBar(content: Text("Couldn't send report. Please try again")),
       );
     }
   }
@@ -458,7 +458,7 @@ class _ReportButtonState extends State<_ReportButton> {
               )
             : Icon(sent ? Icons.check_circle_outline : Icons.flag_outlined, size: 15),
         label: Text(
-          sent ? 'Thanks — reported' : 'Report Unknown Plant',
+          sent ? 'Thanks, reported' : 'Report Unknown Plant',
           style: const TextStyle(fontSize: 12.5),
         ),
       ),
@@ -514,7 +514,7 @@ class _ReportFormState extends State<_ReportForm> {
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: kTx)),
           const SizedBox(height: 6),
           Text(
-            'Optional — helps with reviewing undocumented campus species later.',
+            'Helps with reviewing undocumented campus species later (optional).',
             style: TextStyle(fontSize: 12, color: kMu, height: 1.5),
           ),
           const SizedBox(height: 16),

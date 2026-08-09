@@ -108,7 +108,7 @@ class _PushNotificationsCard extends StatelessWidget {
 
     final denied = provider.pushPermission == 'denied';
     final subtitle = denied
-        ? "Blocked in your browser's site settings — enable notifications there to turn this back on."
+        ? "Blocked in your browser's site settings; enable notifications there to turn this back on."
         : provider.pushSubscribed
             ? "You'll get today's challenge reminder even when this tab is closed."
             : 'Get a reminder on this device when a new daily challenge is ready.';

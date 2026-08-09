@@ -89,9 +89,9 @@ class ImageQualityChecker {
   String getMessage(ImageQuality quality) {
     switch (quality) {
       case ImageQuality.tooDark:
-        return 'Image is too dark — move to better lighting and try again.';
+        return 'Image is too dark. Move to better lighting and try again.';
       case ImageQuality.tooUniform:
-        return "Couldn't detect any detail — make sure the lens is clean "
+        return "Couldn't detect any detail. Make sure the lens is clean "
             'and pointed at a plant, not a blank surface.';
       case ImageQuality.good:
         return '';

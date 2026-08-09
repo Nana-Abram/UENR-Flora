@@ -196,7 +196,7 @@ class _PreparingScannerView extends StatelessWidget {
                     fontSize: 15, fontWeight: FontWeight.w500, color: kTx)),
             const SizedBox(height: 6),
             Text(
-              'Loading the on-device AI models — this only happens once.',
+              'Loading the on-device AI models (this only happens once).',
               style: TextStyle(fontSize: 13, color: kMu),
               textAlign: TextAlign.center,
             ),
@@ -376,7 +376,7 @@ class _TipsCard extends StatelessWidget {
   const _TipsCard();
 
   static const _tips = [
-    'Ensure good lighting — natural daylight works best',
+    'Ensure good lighting, natural daylight works best',
     'Capture the leaf clearly with stem if possible',
     'Include flower or fruit for higher accuracy',
     'Avoid blurry or heavily shadowed images',
@@ -881,7 +881,7 @@ class _PreviewView extends StatelessWidget {
                   Icon(Icons.check_circle_outline, size: 17, color: kDeep),
                   const SizedBox(width: 9),
                   Expanded(
-                    child: Text('Good quality — leaf is well-lit and in focus',
+                    child: Text('Good quality, leaf is well-lit and in focus',
                         style: TextStyle(fontSize: 12, color: kDeep)),
                   ),
                 ],
@@ -1159,8 +1159,8 @@ class _NeedsMoreImagesView extends StatelessWidget {
     // _runIdentification — once attempts run out it routes straight to
     // /results instead), so completedAttempts is always 1 or 2 here.
     final message = completedAttempts >= 2
-        ? 'Almost there — one final angle'
-        : 'Good start — one more angle will help';
+        ? 'Almost there, one final angle'
+        : 'Good start, one more angle will help';
 
     return Container(
       width: double.infinity,
@@ -1180,7 +1180,7 @@ class _NeedsMoreImagesView extends StatelessWidget {
               textAlign: TextAlign.center),
           const SizedBox(height: 8),
           Text(
-            'A different angle — the flower, bark, or a whole-plant shot — gives the '
+            'A different angle (the flower, bark, or a whole-plant shot) gives the '
             'model more to compare against your first photo.',
             style: TextStyle(fontSize: 12.5, color: kMu, height: 1.55),
             textAlign: TextAlign.center,
@@ -1450,7 +1450,7 @@ class _RejectedView extends StatelessWidget {
 // STATE 6 — QUALITY REJECTED (ImageQualityChecker caught it pre-inference)
 // ─────────────────────────────────────────────────────────────
 const _qualityTips = [
-  'Move to a well-lit area — natural daylight works best',
+  'Move to a well-lit area, natural daylight works best',
   'Make sure the lens isn\'t covered or fogged',
   'Avoid pointing the camera at a blank wall or surface',
   'Hold the camera steady',

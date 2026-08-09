@@ -397,7 +397,7 @@ class OodDetector {
         break;
       default:
         throw FormatException(
-            '$label: unsupported dtype "$descr" — expected <f4 or <f8');
+            '$label: unsupported dtype "$descr" (expected <f4 or <f8)');
     }
 
     return _NpyArray(shape, data);

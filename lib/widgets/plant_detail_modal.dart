@@ -675,7 +675,7 @@ class _ShareIconBtn extends StatelessWidget {
     final url = '${Uri.base.origin}/#/explorer?species=${species.id}';
     final result = await WebShareService.share(
       title: species.commonName,
-      text: '${species.commonName} (${species.scientificName}) — UENR Flora',
+      text: '${species.commonName} (${species.scientificName}), UENR Flora',
       url: url,
     );
     if (!context.mounted) return;

@@ -1047,7 +1047,7 @@ class _RecentActivityCard extends StatelessWidget {
           else if (scans.isEmpty)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 12),
-              child: Text('No scans yet — identify a plant to see your activity here.',
+              child: Text('No scans yet. Identify a plant to see your activity here.',
                   style: TextStyle(fontSize: 12, color: kMu)),
             )
           else
@@ -1313,7 +1313,7 @@ class _MyScanActivityCard extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 30),
               child: Center(
-                child: Text('No scan activity yet — identify a plant to see your trend.',
+                child: Text('No scan activity yet. Identify a plant to see your trend.',
                     style: TextStyle(fontSize: 12, color: kMu)),
               ),
             )
@@ -1522,7 +1522,7 @@ class _ScanHistoryTab extends StatelessWidget {
           border: Border.all(color: kBorder, width: 0.5),
         ),
         child: Center(
-          child: Text('No scans yet — identify a plant to see your history here.',
+          child: Text('No scans yet. Identify a plant to see your history here.',
               style: TextStyle(fontSize: 12, color: kMu)),
         ),
       );
@@ -1579,8 +1579,8 @@ String _scanGroupHeader(DateTime day) {
   final today = DateTime(now.year, now.month, now.day);
   final diff = today.difference(day).inDays;
   final full = '${day.day} ${_kMonths[day.month - 1]} ${day.year}';
-  if (diff == 0) return 'TODAY — $full'.toUpperCase();
-  if (diff == 1) return 'YESTERDAY — $full'.toUpperCase();
+  if (diff == 0) return 'TODAY ($full)'.toUpperCase();
+  if (diff == 1) return 'YESTERDAY ($full)'.toUpperCase();
   return full.toUpperCase();
 }
 
@@ -1754,7 +1754,7 @@ class _LeaderboardLinkCard extends StatelessWidget {
                   Text('Leaderboard',
                       style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: kTx)),
                   const SizedBox(height: 2),
-                  Text('See how your points compare — opt-in only',
+                  Text('See how your points compare (opt-in only)',
                       style: TextStyle(fontSize: 12, color: kMu)),
                 ],
               ),

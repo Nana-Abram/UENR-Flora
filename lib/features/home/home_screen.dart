@@ -166,7 +166,7 @@ class _HeroSection extends StatelessWidget {
                           Expanded(
                             child: Text(
                               isWide
-                                  ? '${_greeting()} — University of Energy and Natural Resources'
+                                  ? '${_greeting()}, University of Energy and Natural Resources'
                                   : _greeting(),
                               style: const TextStyle(fontSize: 13, color: Colors.white70),
                             ),
@@ -837,7 +837,7 @@ class _DidYouKnowCard extends StatelessWidget {
   const _DidYouKnowCard();
 
   static const _fallback =
-      'UENR\'s campus hosts dozens of documented plant species — each one '
+      'UENR\'s campus hosts dozens of documented plant species, each one '
       'playing a role in local biodiversity.';
 
   @override
@@ -955,7 +955,7 @@ class _ScanActivitySectionState extends State<_ScanActivitySection> {
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 30),
               child: Center(
-                child: Text('No scan activity yet — identify a plant to see trends.',
+                child: Text('No scan activity yet. Identify a plant to see trends.',
                     style: TextStyle(fontSize: 12, color: kMu)),
               ),
             )

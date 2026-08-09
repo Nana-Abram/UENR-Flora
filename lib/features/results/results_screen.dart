@@ -236,7 +236,7 @@ class _LowConfidenceBanner extends StatelessWidget {
             const SizedBox(width: 9),
             Expanded(
               child: Text(
-                'Low confidence result — this might be $speciesName. '
+                'Low confidence result. This might be $speciesName. '
                 'Try scanning in better lighting or closer to the leaf.',
                 style: TextStyle(fontSize: 12, color: kRetry, height: 1.5),
               ),
@@ -261,7 +261,7 @@ class _NoResultView extends StatelessWidget {
         : 'Plant could not be identified confidently';
     final body = confident
         ? "We recognised a match, but couldn't load its record just now. "
-          'This is usually temporary — please try again.'
+          'This is usually temporary. Please try again.'
         : "We compared your photos against every species in our database but "
           "couldn't reach ${(kConfidenceThreshold * 100).round()}% confidence. "
           'Try clearer, well-lit photos of the leaf, flower, or bark.';
@@ -573,7 +573,7 @@ class _ShareCircleBtn extends StatelessWidget {
     final url = '${Uri.base.origin}/#/explorer?species=${species.id}';
     final result = await WebShareService.share(
       title: species.commonName,
-      text: '${species.commonName} (${species.scientificName}) — UENR Flora',
+      text: '${species.commonName} (${species.scientificName}), UENR Flora',
       url: url,
     );
     if (!context.mounted) return;

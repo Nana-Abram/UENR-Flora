@@ -24,9 +24,9 @@ class GateResult {
   String get message {
     if (isPlant) return '';
     if (confidence < 0.20) {
-      return 'No plant detected — point the camera at a leaf.';
+      return 'No plant detected. Point the camera at a leaf.';
     }
-    return 'Cannot confirm this is a plant — try a clearer angle.';
+    return 'Cannot confirm this is a plant. Try a clearer angle.';
   }
 }
 

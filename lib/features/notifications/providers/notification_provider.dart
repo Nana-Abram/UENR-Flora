@@ -102,7 +102,7 @@ class NotificationProvider extends ChangeNotifier with WidgetsBindingObserver {
   /// flutter_service_worker.js), not a real subscribe failure.
   String _describePushError(Object e) {
     if (e.toString().contains('sw-unavailable')) {
-      return "Push notifications need a release build — run `flutter build web --release` "
+      return "Push notifications need a release build. Run `flutter build web --release` "
           "and serve that instead of `flutter run`, which doesn't register a service worker.";
     }
     return "Couldn't update push notifications. Please try again.";

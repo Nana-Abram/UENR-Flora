@@ -74,7 +74,7 @@ class _OfflineBanner extends StatelessWidget {
                   Icon(Icons.wifi_off, size: 14, color: Colors.white),
                   SizedBox(width: 8),
                   Text(
-                    "You're offline — some features may not work until you're back online.",
+                    "You're offline; some features may not work until you're back online.",
                     style: TextStyle(fontSize: 12, color: Colors.white, fontWeight: FontWeight.w500),
                     textAlign: TextAlign.center,
                   ),

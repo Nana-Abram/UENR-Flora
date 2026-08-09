@@ -44,8 +44,8 @@ class ProfileService {
   UserProfile _profileFromRpcRow(Object? row, String rpcName) {
     final map = row as Map<String, dynamic>;
     if (map['device_id'] == null) {
-      throw StateError('$rpcName found no matching user_profiles row — '
-          'was the profile deleted mid-request?');
+      throw StateError('$rpcName found no matching user_profiles row '
+          '(was the profile deleted mid-request?)');
     }
     return UserProfile.fromJson(map);
   }

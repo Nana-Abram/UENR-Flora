@@ -113,7 +113,7 @@ class _MyRankCard extends StatelessWidget {
                     const SizedBox(width: 10),
                     const Expanded(
                       child: Text(
-                        "You're not on the leaderboard yet — join in with your profile name and points.",
+                        "You're not on the leaderboard yet; join in with your profile name and points.",
                         style: TextStyle(fontSize: 13, color: Colors.white),
                       ),
                     ),
@@ -158,7 +158,7 @@ class _LeaderboardList extends StatelessWidget {
             Text('No one has joined the leaderboard yet',
                 style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: kTx)),
             const SizedBox(height: 4),
-            Text('Be the first — opt in above.',
+            Text('Be the first, opt in above.',
                 style: TextStyle(fontSize: 12, color: kMu)),
           ],
         ),

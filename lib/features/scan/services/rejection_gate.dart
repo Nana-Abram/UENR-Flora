@@ -123,10 +123,10 @@ class RejectionGate {
   String? getUserMessage(RejectionLevel level, String? speciesName) {
     switch (level) {
       case RejectionLevel.definitelyNotPlant:
-        return 'No plant detected — point the camera directly at a leaf '
+        return 'No plant detected. Point the camera directly at a leaf '
             'or branch and try again.';
       case RejectionLevel.probablyNotPlant:
-        return "Cannot identify this image — make sure the plant fills "
+        return "Cannot identify this image. Make sure the plant fills "
             'most of the frame and try again.';
       case RejectionLevel.lowConfidencePlant:
       case RejectionLevel.confident:
