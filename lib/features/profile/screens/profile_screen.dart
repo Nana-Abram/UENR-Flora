@@ -430,6 +430,19 @@ class _NameAndLevel extends StatefulWidget {
 class _NameAndLevelState extends State<_NameAndLevel> {
   bool _editing = false;
   late final TextEditingController _ctrl = TextEditingController(text: widget.name);
+  final FocusNode _focusNode = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    // Enter (onSubmitted) isn't the only way users leave the field — on
+    // web the natural instinct is to just click elsewhere, which doesn't
+    // fire onSubmitted at all. Without this, that click silently discards
+    // the typed name the moment the field loses focus.
+    _focusNode.addListener(() {
+      if (!_focusNode.hasFocus && _editing) _save(_ctrl.text);
+    });
+  }
 
   @override
   void didUpdateWidget(covariant _NameAndLevel old) {
@@ -439,11 +452,13 @@ class _NameAndLevelState extends State<_NameAndLevel> {
 
   @override
   void dispose() {
+    _focusNode.dispose();
     _ctrl.dispose();
     super.dispose();
   }
 
   void _save(String value) {
+    if (!_editing) return;
     final v = value.trim();
     if (v.isNotEmpty) context.read<ProfileProvider>().editName(v);
     setState(() => _editing = false);
@@ -460,7 +475,9 @@ class _NameAndLevelState extends State<_NameAndLevel> {
                 width: 220,
                 child: TextField(
                   controller: _ctrl,
+                  focusNode: _focusNode,
                   autofocus: true,
+                  onTapOutside: (_) => _focusNode.unfocus(),
                   style: const TextStyle(
                       fontFamily: kFontDisplay, fontSize: 17, fontWeight: FontWeight.w500, color: Colors.white),
                   decoration: InputDecoration(
