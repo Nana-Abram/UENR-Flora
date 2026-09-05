@@ -54,6 +54,27 @@ String speciesFullReadText(PlantSpecies species) {
   return buffer.toString();
 }
 
+/// Speech-safe Twi narration: a name/local-name lead-in (the authored Twi
+/// content never states the plant's identity on its own) followed by
+/// [PlantSpecies.descriptionTwi] with academic citation parentheticals
+/// stripped — e.g. "(Agyei-Ohemeng et al. 2016)" reads as jarring mangled
+/// English mid-sentence through the Twi voice. Returns null when there's no
+/// authored Twi description to read.
+String? speciesTwiReadText(PlantSpecies species) {
+  final description = species.descriptionTwi?.trim();
+  if (description == null || description.isEmpty) return null;
+  final cleaned = description
+      .replaceAll(RegExp(r'\s*\([^)]*\b\d{4}\b[^)]*\)'), '')
+      .replaceAll(RegExp(r'\s{2,}'), ' ')
+      .trim();
+  final buffer = StringBuffer()..writeln('${species.commonName}.');
+  if (species.localNameTwi != null) {
+    buffer.writeln('Twi: ${species.localNameTwi}.');
+  }
+  buffer.write(cleaned);
+  return buffer.toString();
+}
+
 /// Same as [speciesFullReadText] but prefixed with the scan outcome — used
 /// on the results screen where a classification is available.
 String identificationReadText(PlantSpecies species, ClassificationOutput cls) {

@@ -86,6 +86,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
                     healthy: cls.healthStatus != HealthStatus.unhealthy,
                     trailing: ReadAloudButton(
                       textBuilder: () => identificationReadText(species, cls),
+                      twiTextBuilder: () => speciesTwiReadText(species),
                     ),
                   ),
 

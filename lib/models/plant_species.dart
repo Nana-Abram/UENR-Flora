@@ -7,6 +7,7 @@ class PlantSpecies {
   final String scientificName;
   final String commonName;
   final String? localNameTwi;
+  final String? descriptionTwi;
   final String? familyName;
   final String? growthHabit;
   final String? growthType; // category used for Explorer filtering: trees / shrubs / herbs / ornamental
@@ -52,6 +53,7 @@ class PlantSpecies {
     required this.commonName,
     required this.modelClassIndex,
     this.localNameTwi,
+    this.descriptionTwi,
     this.familyName,
     this.growthHabit,
     this.growthType,
@@ -94,6 +96,7 @@ class PlantSpecies {
       scientificName:        requireField<String>(map, 'scientific_name', table: table),
       commonName:            requireField<String>(map, 'common_name', table: table),
       localNameTwi:          map['local_name_twi'] as String?,
+      descriptionTwi:        map['description_twi'] as String?,
       familyName:            familyRaw?['name'] as String?,
       growthHabit:           map['growth_habit'] as String?,
       growthType:            map['growth_type'] as String?,
@@ -138,6 +141,7 @@ class PlantSpecies {
         'scientific_name': scientificName,
         'common_name': commonName,
         'local_name_twi': localNameTwi,
+        'description_twi': descriptionTwi,
         'family_name': familyName,
         'growth_habit': growthHabit,
         'growth_type': growthType,
@@ -172,6 +176,7 @@ class PlantSpecies {
         scientificName: map['scientific_name'] as String,
         commonName: map['common_name'] as String,
         localNameTwi: map['local_name_twi'] as String?,
+        descriptionTwi: map['description_twi'] as String?,
         familyName: map['family_name'] as String?,
         growthHabit: map['growth_habit'] as String?,
         growthType: map['growth_type'] as String?,

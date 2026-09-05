@@ -218,6 +218,7 @@ class _PlantDetailModalState extends State<_PlantDetailModal> {
                 ReadAloudButton(
                   circle: true,
                   textBuilder: () => speciesFullReadText(widget.species),
+                  twiTextBuilder: () => speciesTwiReadText(widget.species),
                 ),
                 const SizedBox(width: 8),
                 _FavoriteIconBtn(speciesId: widget.species.id),
