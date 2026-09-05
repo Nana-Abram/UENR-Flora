@@ -13,6 +13,32 @@ window.uenrSpeech = (function () {
   const maxCachedTwiAudio = 5;
   const maxTwiChunkLength = 150;
 
+  // Twi playback needs an Abena network round-trip (often several seconds,
+  // sometimes 30+) before there's anything to play. By the time that
+  // resolves, the tap that started it is long past the narrow window
+  // mobile browsers (iOS Safari especially) require for audio.play() to be
+  // treated as user-initiated — outside that window some engines don't even
+  // reject the play() promise, they just leave it pending forever, which is
+  // why Twi audio looked "stuck generating" on phones while working fine on
+  // desktop (confirmed live: a real WebKit+mobile-viewport run showed
+  // audio.play() return a Promise that never settled). The fix is the
+  // standard mobile "audio unlock" pattern: synchronously play a silent
+  // clip on one persistent <audio> element while still inside the tap's
+  // gesture, then reuse that same already-unlocked element for the real
+  // audio once it's fetched — engines that gate on "did this element ever
+  // play during a real gesture" grant the later programmatic play.
+  let twiAudioElement = null;
+  const SILENT_WAV = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
+
+  function unlockTwiAudioElement() {
+    if (!twiAudioElement) twiAudioElement = new Audio();
+    try {
+      twiAudioElement.src = SILENT_WAV;
+      const p = twiAudioElement.play();
+      if (p && p.catch) p.catch(() => {});
+    } catch (e) {}
+  }
+
   function cancelCurrent() {
     playbackGeneration++;
     if (currentRequest) { currentRequest.abort(); currentRequest = null; }
@@ -113,6 +139,9 @@ window.uenrSpeech = (function () {
   }
 
   function speakTwi(text, endpoint, anonKey, onStarted) {
+    // Must happen synchronously, before cancelCurrent()/fetch — see the
+    // comment on unlockTwiAudioElement above for why.
+    unlockTwiAudioElement();
     cancelCurrent();
     const generation = playbackGeneration;
     const chunks = splitTwiText(text);
@@ -148,7 +177,13 @@ window.uenrSpeech = (function () {
   function playTwiAudio(dataUrl, generation, onStarted) {
     if (generation !== playbackGeneration) return Promise.resolve();
     return new Promise((resolve, reject) => {
-      const audio = new Audio(dataUrl);
+      // Reuse the element unlockTwiAudioElement() already primed with a
+      // real user gesture, rather than a fresh (locked-again) Audio().
+      const audio = twiAudioElement || (twiAudioElement = new Audio());
+      audio.onended = null;
+      audio.onerror = null;
+      audio.pause();
+      audio.src = dataUrl;
       audio.preload = 'auto';
       currentAudio = audio;
       const playbackTimeout = setTimeout(() => {
@@ -156,20 +191,36 @@ window.uenrSpeech = (function () {
         audio.pause();
         reject(new Error('Twi audio playback timed out'));
       }, 120000);
+      // Belt-and-suspenders alongside the unlock trick above: some engines
+      // don't reject a blocked play() at all, they leave the promise
+      // pending forever (seen on a real WebKit+mobile run) — the 120s timer
+      // above is meant for playback that started but ran unexpectedly long,
+      // not this case, so give up much sooner if play() hasn't even fired
+      // its started/rejected callback yet.
+      const playStartTimeout = setTimeout(() => {
+        clearTimeout(playbackTimeout);
+        if (currentAudio === audio) currentAudio = null;
+        audio.pause();
+        reject(new Error('Twi audio playback did not start'));
+      }, 10000);
       audio.onended = () => {
         clearTimeout(playbackTimeout);
+        clearTimeout(playStartTimeout);
         if (currentAudio === audio) currentAudio = null;
         resolve();
       };
       audio.onerror = () => {
         clearTimeout(playbackTimeout);
+        clearTimeout(playStartTimeout);
         if (currentAudio === audio) currentAudio = null;
         reject(new Error('Twi audio could not be played'));
       };
       audio.play().then(() => {
+        clearTimeout(playStartTimeout);
         if (generation === playbackGeneration && onStarted) onStarted();
       }).catch((error) => {
         clearTimeout(playbackTimeout);
+        clearTimeout(playStartTimeout);
         if (currentAudio === audio) currentAudio = null;
         reject(error);
       });
